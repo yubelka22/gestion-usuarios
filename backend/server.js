@@ -10,6 +10,8 @@ const BIND_PASS = 'admin123';
 const BASE_DN = 'ou=people,dc=makerspace,dc=local';
 const GROUPS_DN = 'ou=groups,dc=makerspace,dc=local';
 
+const str = (val) => Array.isArray(val) ? (val[0] || '') : (val || '');
+
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -21,7 +23,9 @@ app.get('/', (req, res) => {
         body { font-family: Arial, sans-serif; max-width: 1000px; margin: 40px auto; padding: 0 20px; }
         h1, h2 { color: #333; }
         .contador { background: #4a90d9; color: white; padding: 10px 20px; border-radius: 5px; display: inline-block; margin-bottom: 20px; }
-        .filtros { margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .controles { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; flex-wrap: wrap; }
+        .buscador { padding: 8px 14px; border: 1px solid #ddd; border-radius: 20px; font-size: 14px; width: 250px; }
+        .filtros { display: flex; gap: 8px; flex-wrap: wrap; }
         .btn-filtro { padding: 8px 16px; border: none; border-radius: 20px; cursor: pointer; font-size: 13px; background: #e0e0e0; color: #333; }
         .btn-filtro.activo { background: #4a90d9; color: white; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -40,18 +44,22 @@ app.get('/', (req, res) => {
         .mensaje { padding: 10px; border-radius: 4px; margin-top: 10px; display: none; }
         .exito { background: #d4edda; color: #155724; }
         .error { background: #f8d7da; color: #721c24; }
+        .sin-resultados { text-align: center; padding: 20px; color: #888; }
       </style>
     </head>
     <body>
       <h1>Usuarios Zaragoza Maker Space</h1>
       <p id="contador" class="contador">Cargando...</p>
 
-      <div class="filtros">
-        <button class="btn-filtro activo" onclick="filtrar('todos', this)">Todos</button>
-        <button class="btn-filtro" onclick="filtrar('socios', this)">Socios</button>
-        <button class="btn-filtro" onclick="filtrar('junta', this)">Junta</button>
-        <button class="btn-filtro" onclick="filtrar('voluntarios', this)">Voluntarios</button>
-        <button class="btn-filtro" onclick="filtrar('sin grupo', this)">Sin grupo</button>
+      <div class="controles">
+        <input type="text" class="buscador" id="buscador" placeholder="Buscar por nombre o email..." oninput="renderizarTabla()" />
+        <div class="filtros">
+          <button class="btn-filtro activo" onclick="filtrar('todos', this)">Todos</button>
+          <button class="btn-filtro" onclick="filtrar('socios', this)">Socios</button>
+          <button class="btn-filtro" onclick="filtrar('junta', this)">Junta</button>
+          <button class="btn-filtro" onclick="filtrar('voluntarios', this)">Voluntarios</button>
+          <button class="btn-filtro" onclick="filtrar('sin grupo', this)">Sin grupo</button>
+        </div>
       </div>
 
       <table id="tabla" style="display:none">
@@ -86,8 +94,7 @@ app.get('/', (req, res) => {
 
         function getBadge(rol) {
           if (!rol) return '<span class="badge badge-sin-grupo">sin grupo</span>';
-          const clase = 'badge-' + rol.toLowerCase();
-          return '<span class="badge ' + clase + '">' + rol + '</span>';
+          return '<span class="badge badge-' + rol.toLowerCase() + '">' + rol + '</span>';
         }
 
         function filtrar(rol, btn) {
@@ -100,20 +107,36 @@ app.get('/', (req, res) => {
         function renderizarTabla() {
           const cuerpo = document.getElementById('cuerpo');
           const contador = document.getElementById('contador');
+          const busqueda = document.getElementById('buscador').value.toLowerCase();
           cuerpo.innerHTML = '';
 
-          const filtrados = filtroActual === 'todos'
+          let filtrados = filtroActual === 'todos'
             ? todosLosUsuarios
             : todosLosUsuarios.filter(u => (u.grupo || 'sin grupo').toLowerCase() === filtroActual);
 
+          if (busqueda) {
+            filtrados = filtrados.filter(u =>
+              u.nombre.toLowerCase().includes(busqueda) ||
+              u.apellido.toLowerCase().includes(busqueda) ||
+              u.uid.toLowerCase().includes(busqueda) ||
+              u.email.toLowerCase().includes(busqueda) ||
+              u.nombreCompleto.toLowerCase().includes(busqueda)
+            );
+          }
+
           contador.textContent = 'Mostrando: ' + filtrados.length + ' de ' + todosLosUsuarios.length + ' usuarios';
+
+          if (filtrados.length === 0) {
+            cuerpo.innerHTML = '<tr><td colspan="6" class="sin-resultados">No se encontraron usuarios</td></tr>';
+            return;
+          }
 
           filtrados.forEach(u => {
             cuerpo.innerHTML += '<tr>' +
-              '<td>' + (u.givenName||'-') + '</td>' +
-              '<td>' + (u.sn||'-') + '</td>' +
-              '<td>' + (u.uid||'-') + '</td>' +
-              '<td>' + (u.mail||'-') + '</td>' +
+              '<td>' + (u.nombre || '-') + '</td>' +
+              '<td>' + (u.apellido || '-') + '</td>' +
+              '<td>' + u.uid + '</td>' +
+              '<td>' + (u.email || '-') + '</td>' +
               '<td>' + getBadge(u.grupo) + '</td>' +
               '<td><button class="btn-borrar" onclick="borrarUsuario(\\'' + u.uid + '\\')">Borrar</button></td>' +
               '</tr>';
@@ -180,7 +203,7 @@ app.get('/api/usuarios', async (req, res) => {
     const { searchEntries: usuarios } = await client.search(BASE_DN, {
       scope: 'sub',
       filter: '(objectClass=person)',
-      attributes: ['cn', 'uid', 'mail', 'givenName', 'sn'],
+      attributes: ['cn', 'uid', 'mail', 'givenName', 'sn', 'displayName'],
     });
     const { searchEntries: grupos } = await client.search(GROUPS_DN, {
       scope: 'sub',
@@ -188,16 +211,26 @@ app.get('/api/usuarios', async (req, res) => {
       attributes: ['cn', 'member'],
     });
     await client.unbind();
+
     const resultado = usuarios.map(u => {
+      const uid = str(u.uid);
       const grupoUsuario = grupos.find(g =>
         g.member && (
           Array.isArray(g.member)
-            ? g.member.some(m => m.includes('uid=' + u.uid))
-            : g.member.includes('uid=' + u.uid)
+            ? g.member.some(m => m.includes('uid=' + uid))
+            : g.member.includes('uid=' + uid)
         )
       );
-      return { ...u, grupo: grupoUsuario ? grupoUsuario.cn : null };
+      return {
+        uid,
+        nombre: str(u.givenName),
+        apellido: str(u.sn),
+        nombreCompleto: str(u.cn) || str(u.displayName),
+        email: str(u.mail),
+        grupo: grupoUsuario ? str(grupoUsuario.cn) : null
+      };
     });
+
     res.json(resultado);
   } catch (err) {
     res.status(500).json({ error: err.message });
