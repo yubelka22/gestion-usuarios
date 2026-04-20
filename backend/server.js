@@ -21,7 +21,10 @@ app.get('/', (req, res) => {
         body { font-family: Arial, sans-serif; max-width: 1000px; margin: 40px auto; padding: 0 20px; }
         h1, h2 { color: #333; }
         .contador { background: #4a90d9; color: white; padding: 10px 20px; border-radius: 5px; display: inline-block; margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .filtros { margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn-filtro { padding: 8px 16px; border: none; border-radius: 20px; cursor: pointer; font-size: 13px; background: #e0e0e0; color: #333; }
+        .btn-filtro.activo { background: #4a90d9; color: white; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th { background: #4a90d9; color: white; padding: 10px; text-align: left; }
         td { padding: 10px; border-bottom: 1px solid #ddd; }
         tr:hover { background: #f5f5f5; }
@@ -42,6 +45,15 @@ app.get('/', (req, res) => {
     <body>
       <h1>Usuarios Zaragoza Maker Space</h1>
       <p id="contador" class="contador">Cargando...</p>
+
+      <div class="filtros">
+        <button class="btn-filtro activo" onclick="filtrar('todos', this)">Todos</button>
+        <button class="btn-filtro" onclick="filtrar('socios', this)">Socios</button>
+        <button class="btn-filtro" onclick="filtrar('junta', this)">Junta</button>
+        <button class="btn-filtro" onclick="filtrar('voluntarios', this)">Voluntarios</button>
+        <button class="btn-filtro" onclick="filtrar('sin grupo', this)">Sin grupo</button>
+      </div>
+
       <table id="tabla" style="display:none">
         <thead>
           <tr>
@@ -69,32 +81,52 @@ app.get('/', (req, res) => {
       </div>
 
       <script>
+        let todosLosUsuarios = [];
+        let filtroActual = 'todos';
+
         function getBadge(rol) {
           if (!rol) return '<span class="badge badge-sin-grupo">sin grupo</span>';
           const clase = 'badge-' + rol.toLowerCase();
           return '<span class="badge ' + clase + '">' + rol + '</span>';
         }
 
+        function filtrar(rol, btn) {
+          filtroActual = rol;
+          document.querySelectorAll('.btn-filtro').forEach(b => b.classList.remove('activo'));
+          btn.classList.add('activo');
+          renderizarTabla();
+        }
+
+        function renderizarTabla() {
+          const cuerpo = document.getElementById('cuerpo');
+          const contador = document.getElementById('contador');
+          cuerpo.innerHTML = '';
+
+          const filtrados = filtroActual === 'todos'
+            ? todosLosUsuarios
+            : todosLosUsuarios.filter(u => (u.grupo || 'sin grupo').toLowerCase() === filtroActual);
+
+          contador.textContent = 'Mostrando: ' + filtrados.length + ' de ' + todosLosUsuarios.length + ' usuarios';
+
+          filtrados.forEach(u => {
+            cuerpo.innerHTML += '<tr>' +
+              '<td>' + (u.givenName||'-') + '</td>' +
+              '<td>' + (u.sn||'-') + '</td>' +
+              '<td>' + (u.uid||'-') + '</td>' +
+              '<td>' + (u.mail||'-') + '</td>' +
+              '<td>' + getBadge(u.grupo) + '</td>' +
+              '<td><button class="btn-borrar" onclick="borrarUsuario(\\'' + u.uid + '\\')">Borrar</button></td>' +
+              '</tr>';
+          });
+        }
+
         function cargarUsuarios() {
           fetch('/api/usuarios')
             .then(r => r.json())
             .then(data => {
-              const contador = document.getElementById('contador');
-              const tabla = document.getElementById('tabla');
-              const cuerpo = document.getElementById('cuerpo');
-              cuerpo.innerHTML = '';
-              contador.textContent = 'Total de usuarios: ' + data.length;
-              tabla.style.display = 'table';
-              data.forEach(u => {
-                cuerpo.innerHTML += '<tr>' +
-                  '<td>' + (u.givenName||'-') + '</td>' +
-                  '<td>' + (u.sn||'-') + '</td>' +
-                  '<td>' + (u.uid||'-') + '</td>' +
-                  '<td>' + (u.mail||'-') + '</td>' +
-                  '<td>' + getBadge(u.grupo) + '</td>' +
-                  '<td><button class="btn-borrar" onclick="borrarUsuario(\\'' + u.uid + '\\')">Borrar</button></td>' +
-                  '</tr>';
-              });
+              todosLosUsuarios = data;
+              document.getElementById('tabla').style.display = 'table';
+              renderizarTabla();
             });
         }
 
@@ -145,21 +177,17 @@ app.get('/api/usuarios', async (req, res) => {
   const client = new Client({ url: LDAP_URL });
   try {
     await client.bind(BIND_DN, BIND_PASS);
-
     const { searchEntries: usuarios } = await client.search(BASE_DN, {
       scope: 'sub',
       filter: '(objectClass=person)',
       attributes: ['cn', 'uid', 'mail', 'givenName', 'sn'],
     });
-
     const { searchEntries: grupos } = await client.search(GROUPS_DN, {
       scope: 'sub',
       filter: '(objectClass=groupOfUniqueNames)',
       attributes: ['cn', 'member'],
     });
-
     await client.unbind();
-
     const resultado = usuarios.map(u => {
       const grupoUsuario = grupos.find(g =>
         g.member && (
@@ -170,7 +198,6 @@ app.get('/api/usuarios', async (req, res) => {
       );
       return { ...u, grupo: grupoUsuario ? grupoUsuario.cn : null };
     });
-
     res.json(resultado);
   } catch (err) {
     res.status(500).json({ error: err.message });
