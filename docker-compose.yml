@@ -1,0 +1,24 @@
+version: '3'
+
+services:
+  lldap:
+    image: lldap/lldap:stable
+    ports:
+      - "17170:17170"
+      - "389:3890"
+    environment:
+      - LLDAP_JWT_SECRET=secreto123
+      - LLDAP_LDAP_USER_PASS=admin123
+      - LLDAP_LDAP_BASE_DN=dc=makerspace,dc=local
+    volumes:
+      - lldap_data:/data
+
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - lldap
+
+volumes:
+  lldap_data:
