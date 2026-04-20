@@ -8,6 +8,7 @@ const LDAP_URL = 'ldap://lldap:3890';
 const BIND_DN = 'uid=admin,ou=people,dc=makerspace,dc=local';
 const BIND_PASS = 'admin123';
 const BASE_DN = 'ou=people,dc=makerspace,dc=local';
+const GROUPS_DN = 'ou=groups,dc=makerspace,dc=local';
 
 app.get('/', (req, res) => {
   res.send(`
@@ -17,7 +18,7 @@ app.get('/', (req, res) => {
       <meta charset="UTF-8">
       <title>Usuarios - Zaragoza Maker Space</title>
       <style>
-        body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; }
+        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 40px auto; padding: 0 20px; }
         h1, h2 { color: #333; }
         .contador { background: #4a90d9; color: white; padding: 10px 20px; border-radius: 5px; display: inline-block; margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -28,8 +29,11 @@ app.get('/', (req, res) => {
         .formulario input { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; width: 200px; }
         .btn-crear { background: #4a90d9; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; }
         .btn-borrar { background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; }
-        .btn-crear:hover { background: #357abd; }
-        .btn-borrar:hover { background: #c0392b; }
+        .badge { padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: bold; }
+        .badge-socios { background: #d4edda; color: #155724; }
+        .badge-junta { background: #cce5ff; color: #004085; }
+        .badge-voluntarios { background: #fff3cd; color: #856404; }
+        .badge-sin-grupo { background: #f0f0f0; color: #888; }
         .mensaje { padding: 10px; border-radius: 4px; margin-top: 10px; display: none; }
         .exito { background: #d4edda; color: #155724; }
         .error { background: #f8d7da; color: #721c24; }
@@ -45,6 +49,7 @@ app.get('/', (req, res) => {
             <th>Apellido</th>
             <th>Usuario</th>
             <th>Email</th>
+            <th>Rol</th>
             <th>Acción</th>
           </tr>
         </thead>
@@ -64,6 +69,12 @@ app.get('/', (req, res) => {
       </div>
 
       <script>
+        function getBadge(rol) {
+          if (!rol) return '<span class="badge badge-sin-grupo">sin grupo</span>';
+          const clase = 'badge-' + rol.toLowerCase();
+          return '<span class="badge ' + clase + '">' + rol + '</span>';
+        }
+
         function cargarUsuarios() {
           fetch('/api/usuarios')
             .then(r => r.json())
@@ -80,6 +91,7 @@ app.get('/', (req, res) => {
                   '<td>' + (u.sn||'-') + '</td>' +
                   '<td>' + (u.uid||'-') + '</td>' +
                   '<td>' + (u.mail||'-') + '</td>' +
+                  '<td>' + getBadge(u.grupo) + '</td>' +
                   '<td><button class="btn-borrar" onclick="borrarUsuario(\\'' + u.uid + '\\')">Borrar</button></td>' +
                   '</tr>';
               });
@@ -133,13 +145,33 @@ app.get('/api/usuarios', async (req, res) => {
   const client = new Client({ url: LDAP_URL });
   try {
     await client.bind(BIND_DN, BIND_PASS);
-    const { searchEntries } = await client.search(BASE_DN, {
+
+    const { searchEntries: usuarios } = await client.search(BASE_DN, {
       scope: 'sub',
       filter: '(objectClass=person)',
       attributes: ['cn', 'uid', 'mail', 'givenName', 'sn'],
     });
+
+    const { searchEntries: grupos } = await client.search(GROUPS_DN, {
+      scope: 'sub',
+      filter: '(objectClass=groupOfUniqueNames)',
+      attributes: ['cn', 'member'],
+    });
+
     await client.unbind();
-    res.json(searchEntries);
+
+    const resultado = usuarios.map(u => {
+      const grupoUsuario = grupos.find(g =>
+        g.member && (
+          Array.isArray(g.member)
+            ? g.member.some(m => m.includes('uid=' + u.uid))
+            : g.member.includes('uid=' + u.uid)
+        )
+      );
+      return { ...u, grupo: grupoUsuario ? grupoUsuario.cn : null };
+    });
+
+    res.json(resultado);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
