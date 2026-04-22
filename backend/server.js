@@ -18,91 +18,318 @@ app.get('/', (req, res) => {
     <html lang="es">
     <head>
       <meta charset="UTF-8">
-      <title>Usuarios - Zaragoza Maker Space</title>
+      <title>Zaragoza Maker Space — IAM</title>
       <style>
-        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 40px auto; padding: 0 20px; }
-        h1, h2 { color: #333; }
-        .contador { background: #4a90d9; color: white; padding: 10px 20px; border-radius: 5px; display: inline-block; margin-bottom: 20px; }
-        .controles { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; flex-wrap: wrap; }
-        .buscador { padding: 8px 14px; border: 1px solid #ddd; border-radius: 20px; font-size: 14px; width: 250px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #333; }
+
+        header {
+          background: linear-gradient(135deg, #2c3e50, #4a90d9);
+          color: white;
+          padding: 20px 40px;
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        header h1 { font-size: 22px; font-weight: 600; }
+        header p { font-size: 13px; opacity: 0.8; }
+        .logo { font-size: 32px; }
+
+        .contenido { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
+
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
+        .stat-card {
+          background: white;
+          border-radius: 10px;
+          padding: 15px 20px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+          border-left: 4px solid #4a90d9;
+        }
+        .stat-card.socios { border-left-color: #27ae60; }
+        .stat-card.junta { border-left-color: #2980b9; }
+        .stat-card.voluntarios { border-left-color: #f39c12; }
+        .stat-numero { font-size: 28px; font-weight: 700; color: #2c3e50; }
+        .stat-label { font-size: 12px; color: #888; margin-top: 3px; }
+
+        .panel {
+          background: white;
+          border-radius: 10px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+          overflow: hidden;
+          margin-bottom: 25px;
+        }
+        .panel-header {
+          background: #2c3e50;
+          color: white;
+          padding: 15px 20px;
+          font-size: 15px;
+          font-weight: 600;
+        }
+        .panel-body { padding: 20px; }
+
+        .controles {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+          margin-bottom: 15px;
+          flex-wrap: wrap;
+        }
+        .buscador {
+          padding: 9px 16px;
+          border: 1px solid #ddd;
+          border-radius: 20px;
+          font-size: 14px;
+          width: 260px;
+          outline: none;
+        }
+        .buscador:focus { border-color: #4a90d9; }
         .filtros { display: flex; gap: 8px; flex-wrap: wrap; }
-        .btn-filtro { padding: 8px 16px; border: none; border-radius: 20px; cursor: pointer; font-size: 13px; background: #e0e0e0; color: #333; }
-        .btn-filtro.activo { background: #4a90d9; color: white; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th { background: #4a90d9; color: white; padding: 10px; text-align: left; }
-        td { padding: 10px; border-bottom: 1px solid #ddd; }
-        tr:hover { background: #f5f5f5; }
-        .formulario { background: #f9f9f9; padding: 20px; border-radius: 8px; margin-top: 40px; }
-        .formulario input, .formulario select { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; width: 200px; }
-        .btn-crear { background: #4a90d9; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; }
-        .btn-borrar { background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; }
-        .btn-editar { background: #f39c12; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px; }
-        .badge { padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: bold; }
+        .btn-filtro {
+          padding: 7px 16px;
+          border: 1px solid #ddd;
+          border-radius: 20px;
+          cursor: pointer;
+          font-size: 13px;
+          background: white;
+          color: #555;
+          transition: all 0.2s;
+        }
+        .btn-filtro:hover { background: #f0f2f5; }
+        .btn-filtro.activo { background: #2c3e50; color: white; border-color: #2c3e50; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th {
+          background: #f8f9fa;
+          color: #555;
+          padding: 12px 15px;
+          text-align: left;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          border-bottom: 2px solid #eee;
+        }
+        td { padding: 12px 15px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #f8f9fa; }
+
+        .badge {
+          padding: 4px 12px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
         .badge-socios { background: #d4edda; color: #155724; }
         .badge-junta { background: #cce5ff; color: #004085; }
         .badge-voluntarios { background: #fff3cd; color: #856404; }
         .badge-sin-grupo { background: #f0f0f0; color: #888; }
-        .mensaje { padding: 10px; border-radius: 4px; margin-top: 10px; display: none; }
+
+        .btn-editar {
+          background: #f39c12;
+          color: white;
+          padding: 5px 12px;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          font-size: 12px;
+          margin-right: 5px;
+          transition: background 0.2s;
+        }
+        .btn-editar:hover { background: #e67e22; }
+        .btn-borrar {
+          background: #e74c3c;
+          color: white;
+          padding: 5px 12px;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          font-size: 12px;
+          transition: background 0.2s;
+        }
+        .btn-borrar:hover { background: #c0392b; }
+
+        .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        .form-group label { font-size: 12px; color: #666; font-weight: 600; }
+        .form-group input {
+          padding: 9px 12px;
+          border: 1px solid #ddd;
+          border-radius: 6px;
+          font-size: 14px;
+          outline: none;
+        }
+        .form-group input:focus { border-color: #4a90d9; }
+        .btn-crear {
+          background: #27ae60;
+          color: white;
+          padding: 10px 24px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          margin-top: 15px;
+          transition: background 0.2s;
+        }
+        .btn-crear:hover { background: #219a52; }
+
+        .mensaje { padding: 10px 15px; border-radius: 6px; margin-top: 10px; display: none; font-size: 13px; }
         .exito { background: #d4edda; color: #155724; }
         .error { background: #f8d7da; color: #721c24; }
-        .sin-resultados { text-align: center; padding: 20px; color: #888; }
+        .sin-resultados { text-align: center; padding: 30px; color: #aaa; font-size: 14px; }
+
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
-        .modal-contenido { background: white; margin: 100px auto; padding: 30px; border-radius: 8px; max-width: 400px; }
-        .modal-contenido h2 { margin-top: 0; }
-        .modal-contenido input, .modal-contenido select { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        .modal-botones { display: flex; gap: 10px; margin-top: 15px; }
-        .btn-guardar { background: #4a90d9; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; flex: 1; }
-        .btn-cancelar { background: #aaa; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; flex: 1; }
+        .modal-contenido {
+          background: white;
+          margin: 80px auto;
+          padding: 30px;
+          border-radius: 12px;
+          max-width: 420px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .modal-contenido h2 { margin-bottom: 20px; color: #2c3e50; }
+        .modal-form-group { margin-bottom: 15px; }
+        .modal-form-group label { display: block; font-size: 12px; color: #666; font-weight: 600; margin-bottom: 5px; }
+        .modal-form-group input {
+          width: 100%;
+          padding: 9px 12px;
+          border: 1px solid #ddd;
+          border-radius: 6px;
+          font-size: 14px;
+          outline: none;
+        }
+        .modal-form-group input:focus { border-color: #4a90d9; }
+        .modal-botones { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-guardar {
+          background: #4a90d9;
+          color: white;
+          padding: 10px 20px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          flex: 1;
+          font-size: 14px;
+          font-weight: 600;
+        }
+        .btn-cancelar {
+          background: #f0f0f0;
+          color: #555;
+          padding: 10px 20px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          flex: 1;
+          font-size: 14px;
+        }
       </style>
     </head>
     <body>
-      <h1>Usuarios Zaragoza Maker Space</h1>
-      <p id="contador" class="contador">Cargando...</p>
-
-      <div class="controles">
-        <input type="text" class="buscador" id="buscador" placeholder="Buscar por nombre o email..." oninput="renderizarTabla()" />
-        <div class="filtros">
-          <button class="btn-filtro activo" onclick="filtrar('todos', this)">Todos</button>
-          <button class="btn-filtro" onclick="filtrar('socios', this)">Socios</button>
-          <button class="btn-filtro" onclick="filtrar('junta', this)">Junta</button>
-          <button class="btn-filtro" onclick="filtrar('voluntarios', this)">Voluntarios</button>
-          <button class="btn-filtro" onclick="filtrar('sin grupo', this)">Sin grupo</button>
+      <header>
+        <div class="logo">⚙️</div>
+        <div>
+          <h1>Zaragoza Maker Space</h1>
+          <p>Panel de gestión de identidades y accesos</p>
         </div>
-      </div>
+      </header>
 
-      <table id="tabla" style="display:none">
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Apellido</th>
-            <th>Usuario</th>
-            <th>Email</th>
-            <th>Rol</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody id="cuerpo"></tbody>
-      </table>
+      <div class="contenido">
+        <div class="stats">
+          <div class="stat-card">
+            <div class="stat-numero" id="stat-total">-</div>
+            <div class="stat-label">Total usuarios</div>
+          </div>
+          <div class="stat-card socios">
+            <div class="stat-numero" id="stat-socios">-</div>
+            <div class="stat-label">Socios</div>
+          </div>
+          <div class="stat-card junta">
+            <div class="stat-numero" id="stat-junta">-</div>
+            <div class="stat-label">Junta</div>
+          </div>
+          <div class="stat-card voluntarios">
+            <div class="stat-numero" id="stat-voluntarios">-</div>
+            <div class="stat-label">Voluntarios</div>
+          </div>
+        </div>
 
-      <div class="formulario">
-        <h2>Crear nuevo usuario</h2>
-        <input type="text" id="uid" placeholder="Nombre de usuario" />
-        <input type="text" id="nombre" placeholder="Nombre" />
-        <input type="text" id="apellido" placeholder="Apellido" />
-        <input type="email" id="email" placeholder="Email" />
-        <input type="password" id="password" placeholder="Contraseña" />
-        <br>
-        <button class="btn-crear" onclick="crearUsuario()">Crear usuario</button>
-        <div id="mensaje" class="mensaje"></div>
+        <div class="panel">
+          <div class="panel-header">👥 Directorio de usuarios</div>
+          <div class="panel-body">
+            <div class="controles">
+              <input type="text" class="buscador" id="buscador" placeholder="🔍 Buscar por nombre o email..." oninput="renderizarTabla()" />
+              <div class="filtros">
+                <button class="btn-filtro activo" onclick="filtrar('todos', this)">Todos</button>
+                <button class="btn-filtro" onclick="filtrar('socios', this)">Socios</button>
+                <button class="btn-filtro" onclick="filtrar('junta', this)">Junta</button>
+                <button class="btn-filtro" onclick="filtrar('voluntarios', this)">Voluntarios</button>
+                <button class="btn-filtro" onclick="filtrar('sin grupo', this)">Sin grupo</button>
+              </div>
+            </div>
+            <table id="tabla" style="display:none">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Apellido</th>
+                  <th>Usuario</th>
+                  <th>Email</th>
+                  <th>Rol</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="cuerpo"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">➕ Crear nuevo usuario</div>
+          <div class="panel-body">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Nombre de usuario</label>
+                <input type="text" id="uid" placeholder="ej: maria" />
+              </div>
+              <div class="form-group">
+                <label>Nombre</label>
+                <input type="text" id="nombre" placeholder="ej: Maria" />
+              </div>
+              <div class="form-group">
+                <label>Apellido</label>
+                <input type="text" id="apellido" placeholder="ej: Lopez" />
+              </div>
+              <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="email" placeholder="ej: maria@makerspace.local" />
+              </div>
+              <div class="form-group">
+                <label>Contraseña</label>
+                <input type="password" id="password" placeholder="••••••••" />
+              </div>
+            </div>
+            <button class="btn-crear" onclick="crearUsuario()">Crear usuario</button>
+            <div id="mensaje" class="mensaje"></div>
+          </div>
+        </div>
       </div>
 
       <div class="modal" id="modal">
         <div class="modal-contenido">
-          <h2>Editar usuario</h2>
+          <h2>✏️ Editar usuario</h2>
           <input type="hidden" id="edit-uid" />
-          <input type="text" id="edit-nombre" placeholder="Nombre" />
-          <input type="text" id="edit-apellido" placeholder="Apellido" />
-          <input type="email" id="edit-email" placeholder="Email" />
+          <div class="modal-form-group">
+            <label>Nombre</label>
+            <input type="text" id="edit-nombre" />
+          </div>
+          <div class="modal-form-group">
+            <label>Apellido</label>
+            <input type="text" id="edit-apellido" />
+          </div>
+          <div class="modal-form-group">
+            <label>Email</label>
+            <input type="email" id="edit-email" />
+          </div>
           <div class="modal-botones">
             <button class="btn-guardar" onclick="guardarEdicion()">Guardar</button>
             <button class="btn-cancelar" onclick="cerrarModal()">Cancelar</button>
@@ -116,8 +343,15 @@ app.get('/', (req, res) => {
         let filtroActual = 'todos';
 
         function getBadge(rol) {
-          if (!rol) return '<span class="badge badge-sin-grupo">sin grupo</span>';
+          if (!rol) return '<span class="badge badge-sin-grupo">Sin grupo</span>';
           return '<span class="badge badge-' + rol.toLowerCase() + '">' + rol + '</span>';
+        }
+
+        function actualizarStats(data) {
+          document.getElementById('stat-total').textContent = data.length;
+          document.getElementById('stat-socios').textContent = data.filter(u => u.grupo === 'socios').length;
+          document.getElementById('stat-junta').textContent = data.filter(u => u.grupo === 'junta').length;
+          document.getElementById('stat-voluntarios').textContent = data.filter(u => u.grupo === 'voluntarios').length;
         }
 
         function filtrar(rol, btn) {
@@ -129,7 +363,6 @@ app.get('/', (req, res) => {
 
         function renderizarTabla() {
           const cuerpo = document.getElementById('cuerpo');
-          const contador = document.getElementById('contador');
           const busqueda = document.getElementById('buscador').value.toLowerCase();
           cuerpo.innerHTML = '';
 
@@ -147,8 +380,6 @@ app.get('/', (req, res) => {
             );
           }
 
-          contador.textContent = 'Mostrando: ' + filtrados.length + ' de ' + todosLosUsuarios.length + ' usuarios';
-
           if (filtrados.length === 0) {
             cuerpo.innerHTML = '<tr><td colspan="6" class="sin-resultados">No se encontraron usuarios</td></tr>';
             return;
@@ -159,7 +390,7 @@ app.get('/', (req, res) => {
             tr.innerHTML =
               '<td>' + (u.nombre || '-') + '</td>' +
               '<td>' + (u.apellido || '-') + '</td>' +
-              '<td>' + u.uid + '</td>' +
+              '<td><strong>' + u.uid + '</strong></td>' +
               '<td>' + (u.email || '-') + '</td>' +
               '<td>' + getBadge(u.grupo) + '</td>' +
               '<td>' +
@@ -213,11 +444,11 @@ app.get('/', (req, res) => {
             mensaje.style.display = 'block';
             if (data.ok) {
               mensaje.className = 'mensaje exito';
-              mensaje.textContent = 'Usuario actualizado correctamente';
+              mensaje.textContent = '✅ Usuario actualizado correctamente';
               setTimeout(() => { cerrarModal(); cargarUsuarios(); }, 1000);
             } else {
               mensaje.className = 'mensaje error';
-              mensaje.textContent = 'Error: ' + data.error;
+              mensaje.textContent = '❌ Error: ' + data.error;
             }
           });
         }
@@ -228,6 +459,7 @@ app.get('/', (req, res) => {
             .then(data => {
               todosLosUsuarios = data;
               document.getElementById('tabla').style.display = 'table';
+              actualizarStats(data);
               renderizarTabla();
             });
         }
@@ -250,11 +482,11 @@ app.get('/', (req, res) => {
             mensaje.style.display = 'block';
             if (data.ok) {
               mensaje.className = 'mensaje exito';
-              mensaje.textContent = 'Usuario creado correctamente';
+              mensaje.textContent = '✅ Usuario creado correctamente';
               cargarUsuarios();
             } else {
               mensaje.className = 'mensaje error';
-              mensaje.textContent = 'Error: ' + data.error;
+              mensaje.textContent = '❌ Error: ' + data.error;
             }
           });
         }
