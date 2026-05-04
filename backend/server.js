@@ -90,8 +90,8 @@ app.get('/', (req, res) => {
         .modal-contenido h2 { margin-bottom: 20px; color: #2c3e50; }
         .modal-form-group { margin-bottom: 15px; }
         .modal-form-group label { display: block; font-size: 12px; color: #666; font-weight: 600; margin-bottom: 5px; }
-        .modal-form-group input { width: 100%; padding: 9px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; }
-        .modal-form-group input:focus { border-color: #4a90d9; }
+        .modal-form-group input, .modal-form-group select { width: 100%; padding: 9px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; }
+        .modal-form-group input:focus, .modal-form-group select:focus { border-color: #4a90d9; }
         .modal-botones { display: flex; gap: 10px; margin-top: 20px; }
         .btn-guardar { background: #4a90d9; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; flex: 1; font-size: 14px; font-weight: 600; }
         .btn-cancelar { background: #f0f0f0; color: #555; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; flex: 1; font-size: 14px; }
@@ -201,6 +201,15 @@ app.get('/', (req, res) => {
             <label>Email</label>
             <input type="email" id="edit-email" />
           </div>
+          <div class="modal-form-group">
+            <label>Grupo</label>
+            <select id="edit-grupo">
+              <option value="">Sin grupo</option>
+              <option value="socios">Socios</option>
+              <option value="junta">Junta</option>
+              <option value="voluntarios">Voluntarios</option>
+            </select>
+          </div>
           <div class="modal-botones">
             <button class="btn-guardar" onclick="guardarEdicion()">Guardar</button>
             <button class="btn-cancelar" onclick="cerrarModal()">Cancelar</button>
@@ -291,6 +300,7 @@ app.get('/', (req, res) => {
           document.getElementById('edit-nombre').value = u.nombre || '';
           document.getElementById('edit-apellido').value = u.apellido || '';
           document.getElementById('edit-email').value = u.email || '';
+          document.getElementById('edit-grupo').value = u.grupo || '';
           document.getElementById('mensaje-modal').style.display = 'none';
           document.getElementById('modal').style.display = 'block';
         }
@@ -304,12 +314,13 @@ app.get('/', (req, res) => {
           const nombre = document.getElementById('edit-nombre').value;
           const apellido = document.getElementById('edit-apellido').value;
           const email = document.getElementById('edit-email').value;
+          const grupo = document.getElementById('edit-grupo').value;
           const mensaje = document.getElementById('mensaje-modal');
 
           fetch('/api/usuarios/' + uid, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
-            body: JSON.stringify({ nombre, apellido, email })
+            body: JSON.stringify({ nombre, apellido, email, grupo })
           })
           .then(r => r.json())
           .then(data => {
@@ -487,7 +498,7 @@ app.post('/api/usuarios', verificarClave, async (req, res) => {
 });
 
 app.put('/api/usuarios/:uid', verificarClave, async (req, res) => {
-  const { nombre, apellido, email } = req.body;
+  const { nombre, apellido, email, grupo } = req.body;
   const uid = req.params.uid;
 
   if (!nombre || !apellido || !email) {
@@ -497,6 +508,34 @@ app.put('/api/usuarios/:uid', verificarClave, async (req, res) => {
   const client = new Client({ url: LDAP_URL });
   try {
     await client.bind(BIND_DN, BIND_PASS);
+
+    // Obtenemos los grupos actuales del usuario antes de borrarlo
+    const { searchEntries: grupos } = await client.search(GROUPS_DN, {
+      scope: 'sub',
+      filter: '(objectClass=groupOfUniqueNames)',
+      attributes: ['cn', 'member'],
+    });
+
+    // Quitamos al usuario de todos sus grupos actuales
+    for (const g of grupos) {
+      const esMiembro = g.member && (
+        Array.isArray(g.member)
+          ? g.member.some(m => m.includes('uid=' + uid))
+          : g.member.includes('uid=' + uid)
+      );
+      const esGrupoSistema = str(g.cn).startsWith('lldap');
+      if (!esGrupoSistema && esMiembro) {
+        try {
+          await client.modify('cn=' + str(g.cn) + ',ou=groups,dc=makerspace,dc=local', [
+            { operation: 'delete', modification: { member: ['uid=' + uid + ',' + BASE_DN] } }
+          ]);
+        } catch (e) {
+          console.error('Error quitando grupo:', e.message);
+        }
+      }
+    }
+
+    // Borramos y recreamos el usuario
     await client.del('uid=' + uid + ',' + BASE_DN);
     await client.add('uid=' + uid + ',' + BASE_DN, {
       objectClass: ['inetOrgPerson'],
@@ -506,6 +545,18 @@ app.put('/api/usuarios/:uid', verificarClave, async (req, res) => {
       sn: apellido,
       mail: email,
     });
+
+    // Añadimos al grupo seleccionado
+    if (grupo) {
+      try {
+        await client.modify('cn=' + grupo + ',ou=groups,dc=makerspace,dc=local', [
+          { operation: 'add', modification: { member: ['uid=' + uid + ',' + BASE_DN] } }
+        ]);
+      } catch (e) {
+        console.error('Error añadiendo grupo:', e.message);
+      }
+    }
+
     await client.unbind();
     res.json({ ok: true });
   } catch (err) {
