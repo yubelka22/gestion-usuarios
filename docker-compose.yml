@@ -5,7 +5,8 @@ services:
     image: lldap/lldap:stable
     ports:
       - "17170:17170"
-      - "389:3890"
+    networks:
+      - iam-internal
     environment:
       - LLDAP_JWT_SECRET=${LLDAP_JWT_SECRET}
       - LLDAP_LDAP_USER_PASS=${LLDAP_LDAP_USER_PASS}
@@ -19,9 +20,15 @@ services:
       - "3000:3000"
     depends_on:
       - lldap
+    networks:
+      - iam-internal
     environment:
       - LDAP_BIND_PASSWORD=${LDAP_BIND_PASSWORD}
       - LLDAP_LDAP_BASE_DN=${LLDAP_LDAP_BASE_DN}
 
 volumes:
   lldap_data:
+
+networks:
+  iam-internal:
+    driver: bridge
