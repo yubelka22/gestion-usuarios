@@ -25,6 +25,7 @@ services:
     environment:
       - LDAP_BIND_PASSWORD=${LDAP_BIND_PASSWORD}
       - LLDAP_LDAP_BASE_DN=${LLDAP_LDAP_BASE_DN}
+      - API_SECRET=${API_SECRET}
 
 volumes:
   lldap_data:

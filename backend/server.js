@@ -9,8 +9,17 @@ const BASE_DN = `ou=people,${process.env.LLDAP_LDAP_BASE_DN || 'dc=makerspace,dc
 const GROUPS_DN = `ou=groups,${process.env.LLDAP_LDAP_BASE_DN || 'dc=makerspace,dc=local'}`;
 const BIND_DN = `uid=admin,ou=people,${process.env.LLDAP_LDAP_BASE_DN || 'dc=makerspace,dc=local'}`;
 const BIND_PASS = process.env.LDAP_BIND_PASSWORD || 'admin123';
+const API_SECRET = process.env.API_SECRET || 'clave_secreta_makerspace';
 
 const str = (val) => Array.isArray(val) ? (val[0] || '') : (val || '');
+
+const verificarClave = (req, res, next) => {
+  const clave = req.headers['x-api-key'];
+  if (!clave || clave !== API_SECRET) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  next();
+};
 
 app.get('/', (req, res) => {
   res.send(`
@@ -201,6 +210,7 @@ app.get('/', (req, res) => {
       </div>
 
       <script>
+        const API_KEY = 'clave_secreta_makerspace';
         let todosLosUsuarios = [];
         let filtroActual = 'todos';
 
@@ -298,7 +308,7 @@ app.get('/', (req, res) => {
 
           fetch('/api/usuarios/' + uid, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
             body: JSON.stringify({ nombre, apellido, email })
           })
           .then(r => r.json())
@@ -344,7 +354,7 @@ app.get('/', (req, res) => {
           if (!/^[a-z0-9_]+$/.test(uid)) {
             mensaje.style.display = 'block';
             mensaje.className = 'mensaje error';
-            mensaje.textContent = 'El nombre de usuario solo puede contener letras minusculas, numeros y guiones bajos';
+            mensaje.textContent = 'El nombre de usuario solo puede contener letras minusculas numeros y guiones bajos';
             return;
           }
 
@@ -364,7 +374,7 @@ app.get('/', (req, res) => {
 
           fetch('/api/usuarios', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
             body: JSON.stringify({ uid, nombre, apellido, email, password })
           })
           .then(r => r.json())
@@ -383,11 +393,14 @@ app.get('/', (req, res) => {
 
         function borrarUsuario(uid) {
           if (!confirm('Seguro que quieres borrar a ' + uid + '?')) return;
-          fetch('/api/usuarios/' + uid, { method: 'DELETE' })
-            .then(r => r.json())
-            .then(data => {
-              if (data.ok) cargarUsuarios();
-            });
+          fetch('/api/usuarios/' + uid, {
+            method: 'DELETE',
+            headers: { 'x-api-key': API_KEY }
+          })
+          .then(r => r.json())
+          .then(data => {
+            if (data.ok) cargarUsuarios();
+          });
         }
 
         cargarUsuarios();
@@ -437,7 +450,7 @@ app.get('/api/usuarios', async (req, res) => {
   }
 });
 
-app.post('/api/usuarios', async (req, res) => {
+app.post('/api/usuarios', verificarClave, async (req, res) => {
   const { uid, nombre, apellido, email, password } = req.body;
 
   if (!uid || !nombre || !apellido || !email || !password) {
@@ -473,7 +486,7 @@ app.post('/api/usuarios', async (req, res) => {
   }
 });
 
-app.put('/api/usuarios/:uid', async (req, res) => {
+app.put('/api/usuarios/:uid', verificarClave, async (req, res) => {
   const { nombre, apellido, email } = req.body;
   const uid = req.params.uid;
 
@@ -501,7 +514,7 @@ app.put('/api/usuarios/:uid', async (req, res) => {
   }
 });
 
-app.delete('/api/usuarios/:uid', async (req, res) => {
+app.delete('/api/usuarios/:uid', verificarClave, async (req, res) => {
   const client = new Client({ url: LDAP_URL });
   try {
     await client.bind(BIND_DN, BIND_PASS);
@@ -514,4 +527,4 @@ app.delete('/api/usuarios/:uid', async (req, res) => {
   }
 });
 
-app.listen(3000, () => console.log('Backend corriendo en http://localhost:3000'));;
+app.listen(3000, () => console.log('Backend corriendo en http://localhost:3000'));
