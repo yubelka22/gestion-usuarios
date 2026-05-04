@@ -7,9 +7,9 @@ services:
       - "17170:17170"
       - "389:3890"
     environment:
-      - LLDAP_JWT_SECRET=secreto123
-      - LLDAP_LDAP_USER_PASS=admin123
-      - LLDAP_LDAP_BASE_DN=dc=makerspace,dc=local
+      - LLDAP_JWT_SECRET=${LLDAP_JWT_SECRET}
+      - LLDAP_LDAP_USER_PASS=${LLDAP_LDAP_USER_PASS}
+      - LLDAP_LDAP_BASE_DN=${LLDAP_LDAP_BASE_DN}
     volumes:
       - lldap_data:/data
 
@@ -19,6 +19,9 @@ services:
       - "3000:3000"
     depends_on:
       - lldap
+    environment:
+      - LDAP_BIND_PASSWORD=${LDAP_BIND_PASSWORD}
+      - LLDAP_LDAP_BASE_DN=${LLDAP_LDAP_BASE_DN}
 
 volumes:
   lldap_data:
