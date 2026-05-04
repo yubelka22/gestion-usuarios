@@ -1,8 +1,17 @@
 const express = require('express');
 const { Client } = require('ldapts');
+const fetch = require('node-fetch');
+const session = require('express-session');
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'session_secreta_makerspace',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 3600000 }
+}));
 
 const LDAP_URL = 'ldap://lldap:3890';
 const BASE_DN = `ou=people,${process.env.LLDAP_LDAP_BASE_DN || 'dc=makerspace,dc=local'}`;
@@ -10,6 +19,9 @@ const GROUPS_DN = `ou=groups,${process.env.LLDAP_LDAP_BASE_DN || 'dc=makerspace,
 const BIND_DN = `uid=admin,ou=people,${process.env.LLDAP_LDAP_BASE_DN || 'dc=makerspace,dc=local'}`;
 const BIND_PASS = process.env.LDAP_BIND_PASSWORD || 'admin123';
 const API_SECRET = process.env.API_SECRET || 'clave_secreta_makerspace';
+const ADMIN_USER = process.env.ADMIN_USER || 'admin';
+const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123';
+const LLDAP_URL = 'http://lldap:17170';
 
 const str = (val) => Array.isArray(val) ? (val[0] || '') : (val || '');
 
@@ -21,7 +33,119 @@ const verificarClave = (req, res, next) => {
   next();
 };
 
-app.get('/', (req, res) => {
+const verificarSesion = (req, res, next) => {
+  if (!req.session.autenticado) {
+    return res.redirect('/login');
+  }
+  next();
+};
+
+async function obtenerToken() {
+  const resp = await fetch(`${LLDAP_URL}/auth/simple/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: BIND_PASS })
+  });
+  const data = await resp.json();
+  return data.token;
+}
+
+async function cambiarGrupo(uid, grupoNuevo, grupoViejo) {
+  try {
+    const token = await obtenerToken();
+
+    if (grupoViejo) {
+      await fetch(`${LLDAP_URL}/api/groups/${grupoViejo}/users`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ userId: uid })
+      });
+    }
+
+    if (grupoNuevo) {
+      const respGrupos = await fetch(`${LLDAP_URL}/api/groups`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const grupos = await respGrupos.json();
+      const grupo = grupos.find(g => g.displayName === grupoNuevo);
+
+      if (grupo) {
+        await fetch(`${LLDAP_URL}/api/groups/${grupo.id}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ userId: uid })
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Error cambiando grupo:', err.message);
+  }
+}
+
+app.get('/login', (req, res) => {
+  if (req.session.autenticado) return res.redirect('/');
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <title>Login - Zaragoza Maker Space</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .login-card { background: white; border-radius: 12px; padding: 40px; width: 360px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .login-header { text-align: center; margin-bottom: 30px; }
+        .login-header h1 { font-size: 20px; color: #2c3e50; margin-bottom: 5px; }
+        .login-header p { font-size: 13px; color: #888; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 12px; color: #666; font-weight: 600; margin-bottom: 5px; }
+        .form-group input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; }
+        .form-group input:focus { border-color: #4a90d9; }
+        .btn-login { width: 100%; background: #4a90d9; color: white; padding: 12px; border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+        .btn-login:hover { background: #357abd; }
+        .error { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 6px; font-size: 13px; margin-bottom: 15px; display: ${req.query.error ? 'block' : 'none'}; }
+      </style>
+    </head>
+    <body>
+      <div class="login-card">
+        <div class="login-header">
+          <h1>Zaragoza Maker Space</h1>
+          <p>Panel de gestion de identidades y accesos</p>
+        </div>
+        <div class="error">Usuario o contrasena incorrectos</div>
+        <form method="POST" action="/login">
+          <div class="form-group">
+            <label>Usuario</label>
+            <input type="text" name="usuario" placeholder="admin" required />
+          </div>
+          <div class="form-group">
+            <label>Contrasena</label>
+            <input type="password" name="password" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn-login">Entrar</button>
+        </form>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
+app.post('/login', (req, res) => {
+  const { usuario, password } = req.body;
+  if (usuario === ADMIN_USER && password === ADMIN_PASS) {
+    req.session.autenticado = true;
+    req.session.usuario = usuario;
+    return res.redirect('/');
+  }
+  res.redirect('/login?error=1');
+});
+
+app.get('/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/login');
+});
+
+app.get('/', verificarSesion, (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html lang="es">
@@ -37,11 +161,13 @@ app.get('/', (req, res) => {
           padding: 20px 40px;
           display: flex;
           align-items: center;
-          gap: 15px;
+          justify-content: space-between;
           box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
-        header h1 { font-size: 22px; font-weight: 600; }
-        header p { font-size: 13px; opacity: 0.8; }
+        .header-left h1 { font-size: 22px; font-weight: 600; }
+        .header-left p { font-size: 13px; opacity: 0.8; }
+        .btn-logout { background: rgba(255,255,255,0.2); color: white; padding: 8px 16px; border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; cursor: pointer; font-size: 13px; text-decoration: none; }
+        .btn-logout:hover { background: rgba(255,255,255,0.3); }
         .contenido { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
         .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
         .stat-card { background: white; border-radius: 10px; padding: 15px 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.07); border-left: 4px solid #4a90d9; }
@@ -99,10 +225,11 @@ app.get('/', (req, res) => {
     </head>
     <body>
       <header>
-        <div>
+        <div class="header-left">
           <h1>Zaragoza Maker Space</h1>
           <p>Panel de gestion de identidades y accesos</p>
         </div>
+        <a href="/logout" class="btn-logout">Cerrar sesion</a>
       </header>
 
       <div class="contenido">
@@ -315,12 +442,13 @@ app.get('/', (req, res) => {
           const apellido = document.getElementById('edit-apellido').value;
           const email = document.getElementById('edit-email').value;
           const grupo = document.getElementById('edit-grupo').value;
+          const grupoViejo = todosLosUsuarios.find(u => u.uid === uid)?.grupo || '';
           const mensaje = document.getElementById('mensaje-modal');
 
           fetch('/api/usuarios/' + uid, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
-            body: JSON.stringify({ nombre, apellido, email, grupo })
+            body: JSON.stringify({ nombre, apellido, email, grupo, grupoViejo })
           })
           .then(r => r.json())
           .then(data => {
@@ -498,7 +626,7 @@ app.post('/api/usuarios', verificarClave, async (req, res) => {
 });
 
 app.put('/api/usuarios/:uid', verificarClave, async (req, res) => {
-  const { nombre, apellido, email, grupo } = req.body;
+  const { nombre, apellido, email, grupo, grupoViejo } = req.body;
   const uid = req.params.uid;
 
   if (!nombre || !apellido || !email) {
@@ -508,34 +636,6 @@ app.put('/api/usuarios/:uid', verificarClave, async (req, res) => {
   const client = new Client({ url: LDAP_URL });
   try {
     await client.bind(BIND_DN, BIND_PASS);
-
-    // Obtenemos los grupos actuales del usuario antes de borrarlo
-    const { searchEntries: grupos } = await client.search(GROUPS_DN, {
-      scope: 'sub',
-      filter: '(objectClass=groupOfUniqueNames)',
-      attributes: ['cn', 'member'],
-    });
-
-    // Quitamos al usuario de todos sus grupos actuales
-    for (const g of grupos) {
-      const esMiembro = g.member && (
-        Array.isArray(g.member)
-          ? g.member.some(m => m.includes('uid=' + uid))
-          : g.member.includes('uid=' + uid)
-      );
-      const esGrupoSistema = str(g.cn).startsWith('lldap');
-      if (!esGrupoSistema && esMiembro) {
-        try {
-          await client.modify('cn=' + str(g.cn) + ',ou=groups,dc=makerspace,dc=local', [
-            { operation: 'delete', modification: { member: ['uid=' + uid + ',' + BASE_DN] } }
-          ]);
-        } catch (e) {
-          console.error('Error quitando grupo:', e.message);
-        }
-      }
-    }
-
-    // Borramos y recreamos el usuario
     await client.del('uid=' + uid + ',' + BASE_DN);
     await client.add('uid=' + uid + ',' + BASE_DN, {
       objectClass: ['inetOrgPerson'],
@@ -545,19 +645,10 @@ app.put('/api/usuarios/:uid', verificarClave, async (req, res) => {
       sn: apellido,
       mail: email,
     });
-
-    // Añadimos al grupo seleccionado
-    if (grupo) {
-      try {
-        await client.modify('cn=' + grupo + ',ou=groups,dc=makerspace,dc=local', [
-          { operation: 'add', modification: { member: ['uid=' + uid + ',' + BASE_DN] } }
-        ]);
-      } catch (e) {
-        console.error('Error añadiendo grupo:', e.message);
-      }
-    }
-
     await client.unbind();
+
+    await cambiarGrupo(uid, grupo, grupoViejo);
+
     res.json({ ok: true });
   } catch (err) {
     console.error('Error editando usuario:', err.message);

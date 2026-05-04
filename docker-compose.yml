@@ -26,6 +26,9 @@ services:
       - LDAP_BIND_PASSWORD=${LDAP_BIND_PASSWORD}
       - LLDAP_LDAP_BASE_DN=${LLDAP_LDAP_BASE_DN}
       - API_SECRET=${API_SECRET}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - ADMIN_USER=${ADMIN_USER}
+      - ADMIN_PASS=${ADMIN_PASS}
 
 volumes:
   lldap_data:
