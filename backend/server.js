@@ -2,6 +2,8 @@ const express = require('express');
 const { Client } = require('ldapts');
 const fetch = require('node-fetch');
 const session = require('express-session');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(express.json());
@@ -22,8 +24,17 @@ const API_SECRET = process.env.API_SECRET || 'clave_secreta_makerspace';
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123';
 const LLDAP_URL = 'http://lldap:17170';
+const LOG_FILE = path.join('/app', 'auditoria.log');
 
 const str = (val) => Array.isArray(val) ? (val[0] || '') : (val || '');
+
+// Funcion para registrar acciones en el log
+function registrarAuditoria(usuario, accion, detalle) {
+  const fecha = new Date().toLocaleString('es-ES');
+  const linea = `[${fecha}] Usuario: ${usuario} | Accion: ${accion} | Detalle: ${detalle}\n`;
+  fs.appendFileSync(LOG_FILE, linea);
+  console.log('AUDITORIA:', linea.trim());
+}
 
 const verificarClave = (req, res, next) => {
   const clave = req.headers['x-api-key'];
@@ -53,7 +64,6 @@ async function obtenerToken() {
 async function cambiarGrupo(uid, grupoNuevo, grupoViejo) {
   try {
     const token = await obtenerToken();
-
     if (grupoViejo) {
       await fetch(`${LLDAP_URL}/api/groups/${grupoViejo}/users`, {
         method: 'DELETE',
@@ -61,14 +71,12 @@ async function cambiarGrupo(uid, grupoNuevo, grupoViejo) {
         body: JSON.stringify({ userId: uid })
       });
     }
-
     if (grupoNuevo) {
       const respGrupos = await fetch(`${LLDAP_URL}/api/groups`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const grupos = await respGrupos.json();
       const grupo = grupos.find(g => g.displayName === grupoNuevo);
-
       if (grupo) {
         await fetch(`${LLDAP_URL}/api/groups/${grupo.id}/users`, {
           method: 'POST',
@@ -135,12 +143,16 @@ app.post('/login', (req, res) => {
   if (usuario === ADMIN_USER && password === ADMIN_PASS) {
     req.session.autenticado = true;
     req.session.usuario = usuario;
+    registrarAuditoria(usuario, 'LOGIN', 'Inicio de sesion correcto');
     return res.redirect('/');
   }
+  registrarAuditoria(usuario || 'desconocido', 'LOGIN_FALLIDO', 'Intento de acceso fallido');
   res.redirect('/login?error=1');
 });
 
 app.get('/logout', (req, res) => {
+  const usuario = req.session.usuario || 'desconocido';
+  registrarAuditoria(usuario, 'LOGOUT', 'Cierre de sesion');
   req.session.destroy();
   res.redirect('/login');
 });
@@ -166,8 +178,11 @@ app.get('/', verificarSesion, (req, res) => {
         }
         .header-left h1 { font-size: 22px; font-weight: 600; }
         .header-left p { font-size: 13px; opacity: 0.8; }
+        .header-right { display: flex; gap: 10px; align-items: center; }
         .btn-logout { background: rgba(255,255,255,0.2); color: white; padding: 8px 16px; border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; cursor: pointer; font-size: 13px; text-decoration: none; }
         .btn-logout:hover { background: rgba(255,255,255,0.3); }
+        .btn-auditoria { background: rgba(255,255,255,0.2); color: white; padding: 8px 16px; border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; cursor: pointer; font-size: 13px; text-decoration: none; }
+        .btn-auditoria:hover { background: rgba(255,255,255,0.3); }
         .contenido { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
         .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
         .stat-card { background: white; border-radius: 10px; padding: 15px 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.07); border-left: 4px solid #4a90d9; }
@@ -229,7 +244,10 @@ app.get('/', verificarSesion, (req, res) => {
           <h1>Zaragoza Maker Space</h1>
           <p>Panel de gestion de identidades y accesos</p>
         </div>
-        <a href="/logout" class="btn-logout">Cerrar sesion</a>
+        <div class="header-right">
+          <a href="/auditoria" class="btn-auditoria">Historial</a>
+          <a href="/logout" class="btn-logout">Cerrar sesion</a>
+        </div>
       </header>
 
       <div class="contenido">
@@ -549,6 +567,61 @@ app.get('/', verificarSesion, (req, res) => {
   `);
 });
 
+app.get('/auditoria', verificarSesion, (req, res) => {
+  let logs = [];
+  try {
+    if (fs.existsSync(LOG_FILE)) {
+      const contenido = fs.readFileSync(LOG_FILE, 'utf8');
+      logs = contenido.trim().split('\n').reverse();
+    }
+  } catch (err) {
+    console.error('Error leyendo log:', err.message);
+  }
+
+  const filas = logs.map(l => `<tr><td style="padding:10px 15px;border-bottom:1px solid #f0f0f0;font-size:13px;font-family:monospace;">${l}</td></tr>`).join('');
+
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <title>Historial - Zaragoza Maker Space</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #333; }
+        header { background: linear-gradient(135deg, #2c3e50, #4a90d9); color: white; padding: 20px 40px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .header-left h1 { font-size: 22px; font-weight: 600; }
+        .header-left p { font-size: 13px; opacity: 0.8; }
+        .btn-volver { background: rgba(255,255,255,0.2); color: white; padding: 8px 16px; border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; cursor: pointer; font-size: 13px; text-decoration: none; }
+        .btn-volver:hover { background: rgba(255,255,255,0.3); }
+        .contenido { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
+        .panel { background: white; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.07); overflow: hidden; }
+        .panel-header { background: #2c3e50; color: white; padding: 15px 20px; font-size: 15px; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; }
+        .vacio { text-align: center; padding: 30px; color: #aaa; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <header>
+        <div class="header-left">
+          <h1>Zaragoza Maker Space</h1>
+          <p>Historial de auditoria</p>
+        </div>
+        <a href="/" class="btn-volver">Volver al panel</a>
+      </header>
+      <div class="contenido">
+        <div class="panel">
+          <div class="panel-header">Registro de acciones</div>
+          <table>
+            ${filas || '<tr><td class="vacio">No hay registros todavia</td></tr>'}
+          </table>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 app.get('/api/usuarios', async (req, res) => {
   const client = new Client({ url: LDAP_URL });
   try {
@@ -618,9 +691,11 @@ app.post('/api/usuarios', verificarClave, async (req, res) => {
       userPassword: password,
     });
     await client.unbind();
+    registrarAuditoria('admin', 'CREAR_USUARIO', `Usuario creado: ${uid} (${nombre} ${apellido})`);
     res.json({ ok: true });
   } catch (err) {
     console.error('Error creando usuario:', err.message);
+    registrarAuditoria('admin', 'ERROR', `Error al crear usuario ${uid}: ${err.message}`);
     res.status(500).json({ error: 'Error al crear el usuario' });
   }
 });
@@ -646,12 +721,12 @@ app.put('/api/usuarios/:uid', verificarClave, async (req, res) => {
       mail: email,
     });
     await client.unbind();
-
     await cambiarGrupo(uid, grupo, grupoViejo);
-
+    registrarAuditoria('admin', 'EDITAR_USUARIO', `Usuario editado: ${uid} | Grupo: ${grupoViejo} -> ${grupo || 'sin grupo'}`);
     res.json({ ok: true });
   } catch (err) {
     console.error('Error editando usuario:', err.message);
+    registrarAuditoria('admin', 'ERROR', `Error al editar usuario ${uid}: ${err.message}`);
     res.status(500).json({ error: 'Error al editar el usuario' });
   }
 });
@@ -662,9 +737,11 @@ app.delete('/api/usuarios/:uid', verificarClave, async (req, res) => {
     await client.bind(BIND_DN, BIND_PASS);
     await client.del('uid=' + req.params.uid + ',' + BASE_DN);
     await client.unbind();
+    registrarAuditoria('admin', 'BORRAR_USUARIO', `Usuario borrado: ${req.params.uid}`);
     res.json({ ok: true });
   } catch (err) {
     console.error('Error borrando usuario:', err.message);
+    registrarAuditoria('admin', 'ERROR', `Error al borrar usuario ${req.params.uid}: ${err.message}`);
     res.status(500).json({ error: 'Error al borrar el usuario' });
   }
 });
