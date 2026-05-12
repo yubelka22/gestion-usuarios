@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Historial - Zaragoza Maker Space</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <h1>Zaragoza Maker Space</h1>
+      <p>Historial de auditoria</p>
+    </div>
+    <a href="/" class="btn-volver">Volver al panel</a>
+  </header>
+
+  <div class="contenido">
+    <div class="panel">
+      <div class="panel-header">Registro de acciones</div>
+      <table id="tabla-auditoria">
+        <tbody id="cuerpo-auditoria">
+          <tr><td class="vacio">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    fetch('/api/auditoria')
+      .then(r => r.json())
+      .then(data => {
+        const cuerpo = document.getElementById('cuerpo-auditoria');
+        if (!data.length) {
+          cuerpo.innerHTML = '<tr><td class="vacio">No hay registros todavia</td></tr>';
+          return;
+        }
+        cuerpo.innerHTML = data.map(linea =>
+          '<tr><td style="padding:10px 15px;border-bottom:1px solid #f0f0f0;font-size:13px;font-family:monospace;">' + linea + '</td></tr>'
+        ).join('');
+      })
+      .catch(() => {
+        document.getElementById('cuerpo-auditoria').innerHTML = '<tr><td class="vacio">Error al cargar el historial</td></tr>';
+      });
+  </script>
+</body>
+</html>

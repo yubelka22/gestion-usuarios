@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Zaragoza Maker Space - IAM</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <h1>Zaragoza Maker Space</h1>
+      <p>Panel de gestion de identidades y accesos</p>
+    </div>
+    <div class="header-right">
+      <a href="/auditoria" class="btn-auditoria">Historial</a>
+      <a href="/logout" class="btn-logout">Cerrar sesion</a>
+    </div>
+  </header>
+
+  <div class="contenido">
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-numero" id="stat-total">-</div>
+        <div class="stat-label">Total usuarios</div>
+      </div>
+      <div class="stat-card socios">
+        <div class="stat-numero" id="stat-socios">-</div>
+        <div class="stat-label">Socios</div>
+      </div>
+      <div class="stat-card junta">
+        <div class="stat-numero" id="stat-junta">-</div>
+        <div class="stat-label">Junta</div>
+      </div>
+      <div class="stat-card voluntarios">
+        <div class="stat-numero" id="stat-voluntarios">-</div>
+        <div class="stat-label">Voluntarios</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Directorio de usuarios</div>
+      <div class="panel-body">
+        <div class="controles">
+          <input type="text" class="buscador" id="buscador" placeholder="Buscar por nombre o email..." oninput="renderizarTabla()" />
+          <div class="filtros">
+            <button class="btn-filtro activo" onclick="filtrar('todos', this)">Todos</button>
+            <button class="btn-filtro" onclick="filtrar('socios', this)">Socios</button>
+            <button class="btn-filtro" onclick="filtrar('junta', this)">Junta</button>
+            <button class="btn-filtro" onclick="filtrar('voluntarios', this)">Voluntarios</button>
+            <button class="btn-filtro" onclick="filtrar('sin grupo', this)">Sin grupo</button>
+          </div>
+        </div>
+        <table id="tabla" style="display:none">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Apellido</th>
+              <th>Usuario</th>
+              <th>Email</th>
+              <th>Rol</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Crear nuevo usuario</div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nombre de usuario</label>
+            <input type="text" id="uid" placeholder="ej: maria" />
+          </div>
+          <div class="form-group">
+            <label>Nombre</label>
+            <input type="text" id="nombre" placeholder="ej: Maria" />
+          </div>
+          <div class="form-group">
+            <label>Apellido</label>
+            <input type="text" id="apellido" placeholder="ej: Lopez" />
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="email" placeholder="ej: maria@makerspace.local" />
+          </div>
+          <div class="form-group">
+            <label>Contrasena</label>
+            <input type="password" id="password" placeholder="minimo 6 caracteres" />
+          </div>
+        </div>
+        <button class="btn-crear" onclick="crearUsuario()">Crear usuario</button>
+        <div id="mensaje" class="mensaje"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal">
+    <div class="modal-contenido">
+      <h2>Editar usuario</h2>
+      <input type="hidden" id="edit-uid" />
+      <div class="modal-form-group">
+        <label>Nombre</label>
+        <input type="text" id="edit-nombre" />
+      </div>
+      <div class="modal-form-group">
+        <label>Apellido</label>
+        <input type="text" id="edit-apellido" />
+      </div>
+      <div class="modal-form-group">
+        <label>Email</label>
+        <input type="email" id="edit-email" />
+      </div>
+      <div class="modal-form-group">
+        <label>Grupo</label>
+        <select id="edit-grupo">
+          <option value="">Sin grupo</option>
+          <option value="socios">Socios</option>
+          <option value="junta">Junta</option>
+          <option value="voluntarios">Voluntarios</option>
+        </select>
+      </div>
+      <div class="modal-botones">
+        <button class="btn-guardar" onclick="guardarEdicion()">Guardar</button>
+        <button class="btn-cancelar" onclick="cerrarModal()">Cancelar</button>
+      </div>
+      <div id="mensaje-modal" class="mensaje"></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

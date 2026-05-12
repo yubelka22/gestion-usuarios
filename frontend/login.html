@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Login - Zaragoza Maker Space</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="login-body">
+  <div class="login-card">
+    <div class="login-header">
+      <h1>Zaragoza Maker Space</h1>
+      <p>Panel de gestion de identidades y accesos</p>
+    </div>
+    <div class="error" id="error-msg" style="display:none; background:#f8d7da; color:#721c24; padding:10px; border-radius:6px; font-size:13px; margin-bottom:15px;">
+      Usuario o contrasena incorrectos
+    </div>
+    <form method="POST" action="/login">
+      <div class="form-group" style="margin-bottom:15px;">
+        <label>Usuario</label>
+        <input type="text" name="usuario" placeholder="admin" required />
+      </div>
+      <div class="form-group" style="margin-bottom:15px;">
+        <label>Contrasena</label>
+        <input type="password" name="password" placeholder="••••••••" required />
+      </div>
+      <button type="submit" class="btn-login">Entrar</button>
+    </form>
+  </div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('error')) {
+      document.getElementById('error-msg').style.display = 'block';
+    }
+  </script>
+</body>
+</html>

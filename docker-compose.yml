@@ -22,6 +22,8 @@ services:
       - lldap
     networks:
       - iam-internal
+    volumes:
+      - ./frontend:/app/frontend
     environment:
       - LDAP_BIND_PASSWORD=${LDAP_BIND_PASSWORD}
       - LLDAP_LDAP_BASE_DN=${LLDAP_LDAP_BASE_DN}
