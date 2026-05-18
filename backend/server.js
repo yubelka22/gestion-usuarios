@@ -15,7 +15,6 @@ app.use(session({
   cookie: { maxAge: 3600000 }
 }));
 
-// Servir archivos estaticos del frontend
 app.use(express.static(path.join('/app', 'frontend')));
 
 const LDAP_URL = 'ldap://lldap:3890';
@@ -60,35 +59,68 @@ async function obtenerToken() {
     body: JSON.stringify({ username: 'admin', password: BIND_PASS })
   });
   const data = await resp.json();
+  console.log('[TOKEN] Respuesta login:', JSON.stringify(data));
   return data.token;
 }
 
 async function cambiarGrupo(uid, grupoNuevo, grupoViejo) {
   try {
+    console.log(`[GRUPO] Cambiando grupo de ${uid}: ${grupoViejo} -> ${grupoNuevo}`);
+
     const token = await obtenerToken();
+    console.log(`[GRUPO] Token obtenido: ${token ? 'si' : 'no'}`);
+
+    const queryGrupos = `{ groups { id displayName } }`;
+    const respGrupos = await fetch(`${LLDAP_URL}/api/graphql`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ query: queryGrupos })
+    });
+    const dataGrupos = await respGrupos.json();
+    console.log(`[GRUPO] Grupos obtenidos:`, JSON.stringify(dataGrupos));
+
+    const grupos = dataGrupos.data?.groups || [];
+
     if (grupoViejo) {
-      await fetch(`${LLDAP_URL}/api/groups/${grupoViejo}/users`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ userId: uid })
-      });
-    }
-    if (grupoNuevo) {
-      const respGrupos = await fetch(`${LLDAP_URL}/api/groups`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const grupos = await respGrupos.json();
-      const grupo = grupos.find(g => g.displayName === grupoNuevo);
-      if (grupo) {
-        await fetch(`${LLDAP_URL}/api/groups/${grupo.id}/users`, {
+      const grupoViejoObj = grupos.find(g => g.displayName === grupoViejo);
+      if (grupoViejoObj) {
+        const mutationQuitar = `mutation { removeUserFromGroup(userId: "${uid}", groupId: ${grupoViejoObj.id}) { ok } }`;
+        const respQuitar = await fetch(`${LLDAP_URL}/api/graphql`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ userId: uid })
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ query: mutationQuitar })
         });
+        const dataQuitar = await respQuitar.json();
+        console.log(`[GRUPO] Quitar grupo:`, JSON.stringify(dataQuitar));
+      }
+    }
+
+    if (grupoNuevo) {
+      const grupoNuevoObj = grupos.find(g => g.displayName === grupoNuevo);
+      if (grupoNuevoObj) {
+        const mutationAnadir = `mutation { addUserToGroup(userId: "${uid}", groupId: ${grupoNuevoObj.id}) { ok } }`;
+        const respAnadir = await fetch(`${LLDAP_URL}/api/graphql`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ query: mutationAnadir })
+        });
+        const dataAnadir = await respAnadir.json();
+        console.log(`[GRUPO] Anadir grupo:`, JSON.stringify(dataAnadir));
+      } else {
+        console.log(`[GRUPO] No se encontro el grupo: ${grupoNuevo}`);
       }
     }
   } catch (err) {
-    console.error('Error cambiando grupo:', err.message);
+    console.error('[GRUPO] Error:', err.message);
   }
 }
 
