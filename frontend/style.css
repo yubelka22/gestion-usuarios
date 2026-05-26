@@ -38,7 +38,7 @@ header { background: linear-gradient(135deg, #2c3e50, #4a90d9); color: white; pa
 /* Tabla */
 table { width: 100%; border-collapse: collapse; }
 th { background: #f8f9fa; color: #555; padding: 12px 15px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #eee; }
-td { padding: 12px 15px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+td { padding: 12px 15px; border-bottom: 1px solid #f0f0f0; font-size: 14px; vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: #f8f9fa; }
 
@@ -48,14 +48,23 @@ tr:hover td { background: #f8f9fa; }
 .badge-junta { background: #cce5ff; color: #004085; }
 .badge-voluntarios { background: #fff3cd; color: #856404; }
 .badge-sin-grupo { background: #f0f0f0; color: #888; }
+.badge-impago { background: #f8d7da; color: #721c24; }
+.badge-estudiante { background: #e2d9f3; color: #4a235a; }
+.badge-honorifico { background: #d4edda; color: #155724; }
+.badge-fines { background: #d1ecf1; color: #0c5460; }
+.badge-junior { background: #fff3cd; color: #856404; }
 
-/* Botones */
+/* Botones accion */
 .btn-editar { background: #f39c12; color: white; padding: 5px 12px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; margin-right: 5px; transition: background 0.2s; }
 .btn-editar:hover { background: #e67e22; }
 .btn-borrar { background: #e74c3c; color: white; padding: 5px 12px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; transition: background 0.2s; }
 .btn-borrar:hover { background: #c0392b; }
 .btn-crear { background: #27ae60; color: white; padding: 10px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; margin-top: 15px; transition: background 0.2s; }
 .btn-crear:hover { background: #219a52; }
+.btn-conceder-acceso { background: #27ae60; color: white; padding: 5px 12px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; margin-left: 5px; margin-top: 5px; display: inline-block; transition: background 0.2s; }
+.btn-conceder-acceso:hover { background: #219a52; }
+.btn-retirar-acceso { background: #95a5a6; color: white; padding: 5px 12px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; margin-left: 5px; margin-top: 5px; display: inline-block; transition: background 0.2s; }
+.btn-retirar-acceso:hover { background: #7f8c8d; }
 
 /* Formulario */
 .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
@@ -93,9 +102,3 @@ tr:hover td { background: #f8f9fa; }
 
 /* Auditoria */
 .vacio { text-align: center; padding: 30px; color: #aaa; font-size: 14px; }
-
-.badge-impago { background: #f8d7da; color: #721c24; }
-.badge-estudiante { background: #e2d9f3; color: #4a235a; }
-.badge-honorifico { background: #d4edda; color: #155724; }
-.badge-fines { background: #d1ecf1; color: #0c5460; }
-.badge-junior { background: #fff3cd; color: #856404; }

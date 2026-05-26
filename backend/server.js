@@ -56,6 +56,7 @@ async function inicializarDB() {
           id SERIAL PRIMARY KEY,
           uid VARCHAR(100) UNIQUE NOT NULL,
           estado VARCHAR(100) DEFAULT 'socio_pagado',
+          acceso BOOLEAN DEFAULT true,
           actualizado TIMESTAMP DEFAULT NOW()
         )
       `);
@@ -208,10 +209,12 @@ app.get('/api/usuarios', async (req, res) => {
     let estadosMap = {};
     if (uids.length > 0) {
       const estadosResult = await pool.query(
-        'SELECT uid, estado FROM estados_usuario WHERE uid = ANY($1)',
+        'SELECT uid, estado, acceso FROM estados_usuario WHERE uid = ANY($1)',
         [uids]
       );
-      estadosResult.rows.forEach(r => { estadosMap[r.uid] = r.estado; });
+      estadosResult.rows.forEach(r => {
+        estadosMap[r.uid] = { estado: r.estado, acceso: r.acceso };
+      });
     }
 
     const resultado = usuarios.map(u => {
@@ -230,7 +233,8 @@ app.get('/api/usuarios', async (req, res) => {
         nombreCompleto: str(u.cn) || str(u.displayName),
         email: str(u.mail),
         grupo: grupoUsuario ? str(grupoUsuario.cn) : null,
-        estado: estadosMap[uid] || 'socio_pagado'
+        estado: estadosMap[uid]?.estado || 'socio_pagado',
+        acceso: estadosMap[uid]?.acceso !== undefined ? estadosMap[uid].acceso : true
       };
     });
     res.json(resultado);
@@ -255,6 +259,25 @@ app.put('/api/usuarios/:uid/estado', verificarClave, async (req, res) => {
   } catch (err) {
     console.error('Error cambiando estado:', err.message);
     res.status(500).json({ error: 'Error al cambiar el estado' });
+  }
+});
+
+app.put('/api/usuarios/:uid/acceso', verificarClave, async (req, res) => {
+  const { acceso } = req.body;
+  const uid = req.params.uid;
+  try {
+    await pool.query(
+      `INSERT INTO estados_usuario (uid, acceso, actualizado)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (uid) DO UPDATE SET acceso = $2, actualizado = NOW()`,
+      [uid, acceso]
+    );
+    const accion = acceso ? 'CONCEDER_ACCESO' : 'RETIRAR_ACCESO';
+    await registrarAuditoria('admin', accion, `Acceso de ${uid} ${acceso ? 'concedido' : 'retirado'}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error cambiando acceso:', err.message);
+    res.status(500).json({ error: 'Error al cambiar el acceso' });
   }
 });
 

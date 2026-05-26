@@ -33,6 +33,11 @@ function getEstadoBadge(estado) {
   return '<span class="badge ' + color + '">' + etiqueta + '</span>';
 }
 
+function getAccesoBadge(acceso) {
+  if (acceso) return '<span class="badge badge-socios">Activo</span>';
+  return '<span class="badge badge-impago">Sin acceso</span>';
+}
+
 function actualizarStats(data) {
   document.getElementById('stat-total').textContent = data.length;
   document.getElementById('stat-socios').textContent = data.filter(u => u.grupo === 'socios').length;
@@ -77,12 +82,15 @@ function renderizarTabla() {
   }
 
   if (filtrados.length === 0) {
-    cuerpo.innerHTML = '<tr><td colspan="7" class="sin-resultados">No se encontraron usuarios</td></tr>';
+    cuerpo.innerHTML = '<tr><td colspan="8" class="sin-resultados">No se encontraron usuarios</td></tr>';
     return;
   }
 
   filtrados.forEach((u, index) => {
     const tr = document.createElement('tr');
+    const btnAcceso = u.acceso
+      ? '<button class="btn-retirar-acceso" data-uid="' + u.uid + '">Retirar acceso</button>'
+      : '<button class="btn-conceder-acceso" data-uid="' + u.uid + '">Conceder acceso</button>';
     tr.innerHTML =
       '<td>' + (u.nombre || '-') + '</td>' +
       '<td>' + (u.apellido || '-') + '</td>' +
@@ -90,9 +98,11 @@ function renderizarTabla() {
       '<td>' + (u.email || '-') + '</td>' +
       '<td>' + getBadge(u.grupo) + '</td>' +
       '<td>' + getEstadoBadge(u.estado) + '</td>' +
+      '<td>' + getAccesoBadge(u.acceso) + '</td>' +
       '<td>' +
         '<button class="btn-editar" data-index="' + index + '">Editar</button>' +
         '<button class="btn-borrar" data-uid="' + u.uid + '">Borrar</button>' +
+        btnAcceso +
       '</td>';
     cuerpo.appendChild(tr);
   });
@@ -108,6 +118,32 @@ function renderizarTabla() {
     btn.addEventListener('click', function() {
       borrarUsuario(this.dataset.uid);
     });
+  });
+
+  document.querySelectorAll('.btn-conceder-acceso').forEach(btn => {
+    btn.addEventListener('click', function() {
+      cambiarAcceso(this.dataset.uid, true);
+    });
+  });
+
+  document.querySelectorAll('.btn-retirar-acceso').forEach(btn => {
+    btn.addEventListener('click', function() {
+      cambiarAcceso(this.dataset.uid, false);
+    });
+  });
+}
+
+function cambiarAcceso(uid, acceso) {
+  const accion = acceso ? 'conceder acceso' : 'retirar acceso';
+  if (!confirm('Seguro que quieres ' + accion + ' a ' + uid + '?')) return;
+  fetch('/api/usuarios/' + uid + '/acceso', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+    body: JSON.stringify({ acceso })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) cargarUsuarios();
   });
 }
 
