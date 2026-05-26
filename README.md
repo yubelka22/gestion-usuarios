@@ -1,46 +1,34 @@
 # Gestión de Usuarios - Zaragoza Maker Space
 
-Sistema de gestión de identidades y accesos para el Zaragoza Maker Space.
+Sistema IAM para el Zaragoza Maker Space, desarrollado como proyecto de prácticas.
 
-## ¿Qué hace este proyecto?
+## ¿Qué hace?
 
-- Gestiona usuarios del makerspace usando LLDAP como directorio
-- Muestra un panel web con todos los usuarios
-- Permite crear y borrar usuarios desde la web
-- Organiza usuarios por roles: socios, junta y voluntarios
-- Incluye buscador y filtros por rol
+Permite gestionar los usuarios del makerspace desde un panel web. Se pueden crear, editar y borrar usuarios, asignarles grupos y consultar un historial de todas las acciones realizadas.
 
-## Tecnologías usadas
+## Tecnologías
 
-- **LLDAP** — servidor LDAP ligero con interfaz web moderna
-- **Node.js** — backend que conecta con LDAP
-- **Express** — servidor web
-- **Docker** — para levantar todos los servicios
-
-## Requisitos
-
-- Docker Desktop instalado
+- LLDAP para el directorio de usuarios
+- Node.js y Express para el backend
+- Postgres para guardar el historial de auditoría
+- Docker para levantar todo junto
+- GraphQL para gestionar los grupos desde LLDAP
 
 ## Cómo levantarlo
 
+Necesitas tener Docker Desktop instalado.
+
 1. Clona el repositorio
-2. Abre una terminal en la carpeta del proyecto
-3. Ejecuta:
+2. Copia `.env.example` a `.env` y edita los valores
+3. Ejecuta `docker-compose up --build`
+4. Abre http://localhost:3000 en el navegador
 
-```bash
-docker-compose up --build
-```
+## Accesos
 
-4. Abre el navegador en **http://localhost:3000**
+- Panel de gestión: http://localhost:3000
+- Interfaz LLDAP: http://localhost:17170
+- Usuario por defecto: admin / admin123
 
-## Servicios disponibles
+## Seguridad
 
-| Servicio | URL |
-|---|---|
-| Panel de usuarios | http://localhost:3000 |
-| Administración LLDAP | http://localhost:17170 |
-
-## Credenciales por defecto
-
-- **Usuario admin LLDAP:** admin
-- **Contraseña:** admin123
+El panel requiere login para acceder. Las credenciales y secretos van en `.env` que no se sube a GitHub. La API está protegida con una clave secreta y LLDAP solo es accesible desde dentro de Docker.
