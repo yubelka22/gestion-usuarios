@@ -14,12 +14,24 @@ services:
     volumes:
       - lldap_data:/data
 
+  postgres:
+    image: postgres:15-alpine
+    networks:
+      - iam-internal
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   backend:
     build: ./backend
     ports:
       - "3000:3000"
     depends_on:
       - lldap
+      - postgres
     networks:
       - iam-internal
     volumes:
@@ -31,9 +43,13 @@ services:
       - SESSION_SECRET=${SESSION_SECRET}
       - ADMIN_USER=${ADMIN_USER}
       - ADMIN_PASS=${ADMIN_PASS}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
 
 volumes:
   lldap_data:
+  postgres_data:
 
 networks:
   iam-internal:

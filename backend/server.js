@@ -2,8 +2,8 @@ const express = require('express');
 const { Client } = require('ldapts');
 const fetch = require('node-fetch');
 const session = require('express-session');
-const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
 
 const app = express();
 app.use(express.json());
@@ -26,15 +26,52 @@ const API_SECRET = process.env.API_SECRET || 'clave_secreta_makerspace';
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123';
 const LLDAP_URL = 'http://lldap:17170';
-const LOG_FILE = path.join('/app', 'auditoria.log');
 
 const str = (val) => Array.isArray(val) ? (val[0] || '') : (val || '');
 
-function registrarAuditoria(usuario, accion, detalle) {
-  const fecha = new Date().toLocaleString('es-ES');
-  const linea = `[${fecha}] Usuario: ${usuario} | Accion: ${accion} | Detalle: ${detalle}\n`;
-  fs.appendFileSync(LOG_FILE, linea);
-  console.log('AUDITORIA:', linea.trim());
+const pool = new Pool({
+  host: 'postgres',
+  user: process.env.POSTGRES_USER || 'makerspace',
+  password: process.env.POSTGRES_PASSWORD || 'makerspace123',
+  database: process.env.POSTGRES_DB || 'iam_db',
+  port: 5432,
+});
+
+async function inicializarDB() {
+  let intentos = 0;
+  const maxIntentos = 10;
+  while (intentos < maxIntentos) {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS auditoria (
+          id SERIAL PRIMARY KEY,
+          fecha TIMESTAMP DEFAULT NOW(),
+          usuario VARCHAR(100),
+          accion VARCHAR(100),
+          detalle TEXT
+        )
+      `);
+      console.log('Base de datos inicializada correctamente');
+      return;
+    } catch (err) {
+      intentos++;
+      console.log(`Esperando a Postgres... intento ${intentos}/${maxIntentos}`);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+  }
+  console.error('No se pudo conectar a la base de datos');
+}
+
+async function registrarAuditoria(usuario, accion, detalle) {
+  try {
+    await pool.query(
+      'INSERT INTO auditoria (usuario, accion, detalle) VALUES ($1, $2, $3)',
+      [usuario, accion, detalle]
+    );
+    console.log(`AUDITORIA: ${usuario} | ${accion} | ${detalle}`);
+  } catch (err) {
+    console.error('Error registrando auditoria:', err.message);
+  }
 }
 
 const verificarClave = (req, res, next) => {
@@ -59,45 +96,30 @@ async function obtenerToken() {
     body: JSON.stringify({ username: 'admin', password: BIND_PASS })
   });
   const data = await resp.json();
-  console.log('[TOKEN] Respuesta login:', JSON.stringify(data));
   return data.token;
 }
 
 async function cambiarGrupo(uid, grupoNuevo, grupoViejo) {
   try {
-    console.log(`[GRUPO] Cambiando grupo de ${uid}: ${grupoViejo} -> ${grupoNuevo}`);
-
     const token = await obtenerToken();
-    console.log(`[GRUPO] Token obtenido: ${token ? 'si' : 'no'}`);
-
     const queryGrupos = `{ groups { id displayName } }`;
     const respGrupos = await fetch(`${LLDAP_URL}/api/graphql`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ query: queryGrupos })
     });
     const dataGrupos = await respGrupos.json();
-    console.log(`[GRUPO] Grupos obtenidos:`, JSON.stringify(dataGrupos));
-
     const grupos = dataGrupos.data?.groups || [];
 
     if (grupoViejo) {
       const grupoViejoObj = grupos.find(g => g.displayName === grupoViejo);
       if (grupoViejoObj) {
         const mutationQuitar = `mutation { removeUserFromGroup(userId: "${uid}", groupId: ${grupoViejoObj.id}) { ok } }`;
-        const respQuitar = await fetch(`${LLDAP_URL}/api/graphql`, {
+        await fetch(`${LLDAP_URL}/api/graphql`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ query: mutationQuitar })
         });
-        const dataQuitar = await respQuitar.json();
-        console.log(`[GRUPO] Quitar grupo:`, JSON.stringify(dataQuitar));
       }
     }
 
@@ -105,22 +127,15 @@ async function cambiarGrupo(uid, grupoNuevo, grupoViejo) {
       const grupoNuevoObj = grupos.find(g => g.displayName === grupoNuevo);
       if (grupoNuevoObj) {
         const mutationAnadir = `mutation { addUserToGroup(userId: "${uid}", groupId: ${grupoNuevoObj.id}) { ok } }`;
-        const respAnadir = await fetch(`${LLDAP_URL}/api/graphql`, {
+        await fetch(`${LLDAP_URL}/api/graphql`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ query: mutationAnadir })
         });
-        const dataAnadir = await respAnadir.json();
-        console.log(`[GRUPO] Anadir grupo:`, JSON.stringify(dataAnadir));
-      } else {
-        console.log(`[GRUPO] No se encontro el grupo: ${grupoNuevo}`);
       }
     }
   } catch (err) {
-    console.error('[GRUPO] Error:', err.message);
+    console.error('Error cambiando grupo:', err.message);
   }
 }
 
@@ -129,21 +144,21 @@ app.get('/login', (req, res) => {
   res.sendFile(path.join('/app', 'frontend', 'login.html'));
 });
 
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
   const { usuario, password } = req.body;
   if (usuario === ADMIN_USER && password === ADMIN_PASS) {
     req.session.autenticado = true;
     req.session.usuario = usuario;
-    registrarAuditoria(usuario, 'LOGIN', 'Inicio de sesion correcto');
+    await registrarAuditoria(usuario, 'LOGIN', 'Inicio de sesion correcto');
     return res.redirect('/');
   }
-  registrarAuditoria(usuario || 'desconocido', 'LOGIN_FALLIDO', 'Intento de acceso fallido');
+  await registrarAuditoria(usuario || 'desconocido', 'LOGIN_FALLIDO', 'Intento de acceso fallido');
   res.redirect('/login?error=1');
 });
 
-app.get('/logout', (req, res) => {
+app.get('/logout', async (req, res) => {
   const usuario = req.session.usuario || 'desconocido';
-  registrarAuditoria(usuario, 'LOGOUT', 'Cierre de sesion');
+  await registrarAuditoria(usuario, 'LOGOUT', 'Cierre de sesion');
   req.session.destroy();
   res.redirect('/login');
 });
@@ -156,14 +171,10 @@ app.get('/auditoria', verificarSesion, (req, res) => {
   res.sendFile(path.join('/app', 'frontend', 'auditoria.html'));
 });
 
-app.get('/api/auditoria', verificarSesion, (req, res) => {
+app.get('/api/auditoria', verificarSesion, async (req, res) => {
   try {
-    if (fs.existsSync(LOG_FILE)) {
-      const contenido = fs.readFileSync(LOG_FILE, 'utf8');
-      const logs = contenido.trim().split('\n').reverse();
-      return res.json(logs);
-    }
-    res.json([]);
+    const result = await pool.query('SELECT * FROM auditoria ORDER BY fecha DESC LIMIT 100');
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Error leyendo el historial' });
   }
@@ -211,7 +222,6 @@ app.get('/api/usuarios', async (req, res) => {
 
 app.post('/api/usuarios', verificarClave, async (req, res) => {
   const { uid, nombre, apellido, email, password } = req.body;
-
   if (!uid || !nombre || !apellido || !email || !password) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
   }
@@ -224,7 +234,6 @@ app.post('/api/usuarios', verificarClave, async (req, res) => {
   if (password.length < 6) {
     return res.status(400).json({ error: 'La contrasena debe tener al menos 6 caracteres' });
   }
-
   const client = new Client({ url: LDAP_URL });
   try {
     await client.bind(BIND_DN, BIND_PASS);
@@ -238,11 +247,11 @@ app.post('/api/usuarios', verificarClave, async (req, res) => {
       userPassword: password,
     });
     await client.unbind();
-    registrarAuditoria('admin', 'CREAR_USUARIO', `Usuario creado: ${uid} (${nombre} ${apellido})`);
+    await registrarAuditoria('admin', 'CREAR_USUARIO', `Usuario creado: ${uid} (${nombre} ${apellido})`);
     res.json({ ok: true });
   } catch (err) {
     console.error('Error creando usuario:', err.message);
-    registrarAuditoria('admin', 'ERROR', `Error al crear usuario ${uid}: ${err.message}`);
+    await registrarAuditoria('admin', 'ERROR', `Error al crear usuario ${uid}: ${err.message}`);
     res.status(500).json({ error: 'Error al crear el usuario' });
   }
 });
@@ -250,11 +259,9 @@ app.post('/api/usuarios', verificarClave, async (req, res) => {
 app.put('/api/usuarios/:uid', verificarClave, async (req, res) => {
   const { nombre, apellido, email, grupo, grupoViejo } = req.body;
   const uid = req.params.uid;
-
   if (!nombre || !apellido || !email) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
   }
-
   const client = new Client({ url: LDAP_URL });
   try {
     await client.bind(BIND_DN, BIND_PASS);
@@ -269,11 +276,11 @@ app.put('/api/usuarios/:uid', verificarClave, async (req, res) => {
     });
     await client.unbind();
     await cambiarGrupo(uid, grupo, grupoViejo);
-    registrarAuditoria('admin', 'EDITAR_USUARIO', `Usuario editado: ${uid} | Grupo: ${grupoViejo} -> ${grupo || 'sin grupo'}`);
+    await registrarAuditoria('admin', 'EDITAR_USUARIO', `Usuario editado: ${uid} | Grupo: ${grupoViejo} -> ${grupo || 'sin grupo'}`);
     res.json({ ok: true });
   } catch (err) {
     console.error('Error editando usuario:', err.message);
-    registrarAuditoria('admin', 'ERROR', `Error al editar usuario ${uid}: ${err.message}`);
+    await registrarAuditoria('admin', 'ERROR', `Error al editar usuario ${uid}: ${err.message}`);
     res.status(500).json({ error: 'Error al editar el usuario' });
   }
 });
@@ -284,13 +291,14 @@ app.delete('/api/usuarios/:uid', verificarClave, async (req, res) => {
     await client.bind(BIND_DN, BIND_PASS);
     await client.del('uid=' + req.params.uid + ',' + BASE_DN);
     await client.unbind();
-    registrarAuditoria('admin', 'BORRAR_USUARIO', `Usuario borrado: ${req.params.uid}`);
+    await registrarAuditoria('admin', 'BORRAR_USUARIO', `Usuario borrado: ${req.params.uid}`);
     res.json({ ok: true });
   } catch (err) {
     console.error('Error borrando usuario:', err.message);
-    registrarAuditoria('admin', 'ERROR', `Error al borrar usuario ${req.params.uid}: ${err.message}`);
+    await registrarAuditoria('admin', 'ERROR', `Error al borrar usuario ${req.params.uid}: ${err.message}`);
     res.status(500).json({ error: 'Error al borrar el usuario' });
   }
 });
 
+inicializarDB();
 app.listen(3000, () => console.log('Backend corriendo en http://localhost:3000'));
