@@ -38,6 +38,16 @@ function actualizarStats(data) {
   document.getElementById('stat-socios').textContent = data.filter(u => u.grupo === 'socios').length;
   document.getElementById('stat-junta').textContent = data.filter(u => u.grupo === 'junta').length;
   document.getElementById('stat-voluntarios').textContent = data.filter(u => u.grupo === 'voluntarios').length;
+
+  const impagos = data.filter(u => u.estado === 'socio_impago');
+  const aviso = document.getElementById('aviso-impagos');
+  if (impagos.length > 0) {
+    aviso.style.display = 'block';
+    aviso.innerHTML = '<strong>Aviso:</strong> Hay ' + impagos.length + ' usuario(s) con impago pendiente: ' +
+      impagos.map(u => '<strong>' + u.nombre + ' ' + u.apellido + '</strong>').join(', ') + '. Revisa la tabla.';
+  } else {
+    aviso.style.display = 'none';
+  }
 }
 
 function filtrar(rol, btn) {
