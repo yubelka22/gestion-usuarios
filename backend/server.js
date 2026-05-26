@@ -51,6 +51,14 @@ async function inicializarDB() {
           detalle TEXT
         )
       `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS estados_usuario (
+          id SERIAL PRIMARY KEY,
+          uid VARCHAR(100) UNIQUE NOT NULL,
+          estado VARCHAR(100) DEFAULT 'socio_pagado',
+          actualizado TIMESTAMP DEFAULT NOW()
+        )
+      `);
       console.log('Base de datos inicializada correctamente');
       return;
     } catch (err) {
@@ -195,6 +203,17 @@ app.get('/api/usuarios', async (req, res) => {
       attributes: ['cn', 'member'],
     });
     await client.unbind();
+
+    const uids = usuarios.map(u => str(u.uid));
+    let estadosMap = {};
+    if (uids.length > 0) {
+      const estadosResult = await pool.query(
+        'SELECT uid, estado FROM estados_usuario WHERE uid = ANY($1)',
+        [uids]
+      );
+      estadosResult.rows.forEach(r => { estadosMap[r.uid] = r.estado; });
+    }
+
     const resultado = usuarios.map(u => {
       const uid = str(u.uid);
       const grupoUsuario = grupos.find(g =>
@@ -210,13 +229,32 @@ app.get('/api/usuarios', async (req, res) => {
         apellido: str(u.sn),
         nombreCompleto: str(u.cn) || str(u.displayName),
         email: str(u.mail),
-        grupo: grupoUsuario ? str(grupoUsuario.cn) : null
+        grupo: grupoUsuario ? str(grupoUsuario.cn) : null,
+        estado: estadosMap[uid] || 'socio_pagado'
       };
     });
     res.json(resultado);
   } catch (err) {
     console.error('Error LDAP:', err.message);
     res.status(500).json({ error: 'Error al conectar con el directorio' });
+  }
+});
+
+app.put('/api/usuarios/:uid/estado', verificarClave, async (req, res) => {
+  const { estado } = req.body;
+  const uid = req.params.uid;
+  try {
+    await pool.query(
+      `INSERT INTO estados_usuario (uid, estado, actualizado)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (uid) DO UPDATE SET estado = $2, actualizado = NOW()`,
+      [uid, estado]
+    );
+    await registrarAuditoria('admin', 'CAMBIAR_ESTADO', `Estado de ${uid} cambiado a: ${estado}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error cambiando estado:', err.message);
+    res.status(500).json({ error: 'Error al cambiar el estado' });
   }
 });
 

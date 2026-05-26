@@ -57,7 +57,8 @@
               <th>Apellido</th>
               <th>Usuario</th>
               <th>Email</th>
-              <th>Rol</th>
+              <th>Grupo</th>
+              <th>Estado</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -120,6 +121,18 @@
           <option value="socios">Socios</option>
           <option value="junta">Junta</option>
           <option value="voluntarios">Voluntarios</option>
+        </select>
+      </div>
+      <div class="modal-form-group">
+        <label>Estado</label>
+        <select id="edit-estado">
+          <option value="socio_pagado">Socio (pagado)</option>
+          <option value="socio_impago">Socio (warning impago)</option>
+          <option value="estudiante">Estudiante</option>
+          <option value="voluntario">Voluntario</option>
+          <option value="honorifico">Honorifico</option>
+          <option value="fines_semana">Acceso fines de semana</option>
+          <option value="junior">Junior</option>
         </select>
       </div>
       <div class="modal-botones">

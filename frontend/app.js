@@ -2,9 +2,35 @@ const API_KEY = 'clave_secreta_makerspace';
 let todosLosUsuarios = [];
 let filtroActual = 'todos';
 
+const estadoEtiquetas = {
+  socio_pagado: 'Socio (pagado)',
+  socio_impago: 'Socio (impago)',
+  estudiante: 'Estudiante',
+  voluntario: 'Voluntario',
+  honorifico: 'Honorifico',
+  fines_semana: 'Fines de semana',
+  junior: 'Junior'
+};
+
+const estadoColores = {
+  socio_pagado: 'badge-socios',
+  socio_impago: 'badge-impago',
+  estudiante: 'badge-estudiante',
+  voluntario: 'badge-voluntarios',
+  honorifico: 'badge-honorifico',
+  fines_semana: 'badge-fines',
+  junior: 'badge-junior'
+};
+
 function getBadge(rol) {
   if (!rol) return '<span class="badge badge-sin-grupo">Sin grupo</span>';
   return '<span class="badge badge-' + rol.toLowerCase() + '">' + rol + '</span>';
+}
+
+function getEstadoBadge(estado) {
+  const etiqueta = estadoEtiquetas[estado] || estado;
+  const color = estadoColores[estado] || 'badge-sin-grupo';
+  return '<span class="badge ' + color + '">' + etiqueta + '</span>';
 }
 
 function actualizarStats(data) {
@@ -41,7 +67,7 @@ function renderizarTabla() {
   }
 
   if (filtrados.length === 0) {
-    cuerpo.innerHTML = '<tr><td colspan="6" class="sin-resultados">No se encontraron usuarios</td></tr>';
+    cuerpo.innerHTML = '<tr><td colspan="7" class="sin-resultados">No se encontraron usuarios</td></tr>';
     return;
   }
 
@@ -53,6 +79,7 @@ function renderizarTabla() {
       '<td><strong>' + u.uid + '</strong></td>' +
       '<td>' + (u.email || '-') + '</td>' +
       '<td>' + getBadge(u.grupo) + '</td>' +
+      '<td>' + getEstadoBadge(u.estado) + '</td>' +
       '<td>' +
         '<button class="btn-editar" data-index="' + index + '">Editar</button>' +
         '<button class="btn-borrar" data-uid="' + u.uid + '">Borrar</button>' +
@@ -80,6 +107,7 @@ function abrirModal(u) {
   document.getElementById('edit-apellido').value = u.apellido || '';
   document.getElementById('edit-email').value = u.email || '';
   document.getElementById('edit-grupo').value = u.grupo || '';
+  document.getElementById('edit-estado').value = u.estado || 'socio_pagado';
   document.getElementById('mensaje-modal').style.display = 'none';
   document.getElementById('modal').style.display = 'block';
 }
@@ -94,6 +122,7 @@ function guardarEdicion() {
   const apellido = document.getElementById('edit-apellido').value;
   const email = document.getElementById('edit-email').value;
   const grupo = document.getElementById('edit-grupo').value;
+  const estado = document.getElementById('edit-estado').value;
   const grupoViejo = todosLosUsuarios.find(u => u.uid === uid)?.grupo || '';
   const mensaje = document.getElementById('mensaje-modal');
 
@@ -104,15 +133,31 @@ function guardarEdicion() {
   })
   .then(r => r.json())
   .then(data => {
+    if (data.ok) {
+      return fetch('/api/usuarios/' + uid + '/estado', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+        body: JSON.stringify({ estado })
+      });
+    } else {
+      throw new Error(data.error);
+    }
+  })
+  .then(r => r.json())
+  .then(data => {
     mensaje.style.display = 'block';
     if (data.ok) {
       mensaje.className = 'mensaje exito';
       mensaje.textContent = 'Usuario actualizado correctamente';
       setTimeout(() => { cerrarModal(); cargarUsuarios(); }, 1000);
     } else {
-      mensaje.className = 'mensaje error';
-      mensaje.textContent = 'Error: ' + data.error;
+      throw new Error(data.error);
     }
+  })
+  .catch(err => {
+    mensaje.style.display = 'block';
+    mensaje.className = 'mensaje error';
+    mensaje.textContent = 'Error: ' + err.message;
   });
 }
 

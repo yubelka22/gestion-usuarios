@@ -93,3 +93,9 @@ tr:hover td { background: #f8f9fa; }
 
 /* Auditoria */
 .vacio { text-align: center; padding: 30px; color: #aaa; font-size: 14px; }
+
+.badge-impago { background: #f8d7da; color: #721c24; }
+.badge-estudiante { background: #e2d9f3; color: #4a235a; }
+.badge-honorifico { background: #d4edda; color: #155724; }
+.badge-fines { background: #d1ecf1; color: #0c5460; }
+.badge-junior { background: #fff3cd; color: #856404; }
