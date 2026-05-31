@@ -40,9 +40,9 @@ function getAccesoBadge(acceso) {
 
 function actualizarStats(data) {
   document.getElementById('stat-total').textContent = data.length;
-  document.getElementById('stat-socios').textContent = data.filter(u => u.grupo === 'socios').length;
-  document.getElementById('stat-junta').textContent = data.filter(u => u.grupo === 'junta').length;
-  document.getElementById('stat-voluntarios').textContent = data.filter(u => u.grupo === 'voluntarios').length;
+  document.getElementById('stat-socios').textContent = data.filter(u => u.grupos && u.grupos.includes('socios')).length;
+  document.getElementById('stat-junta').textContent = data.filter(u => u.grupos && u.grupos.includes('junta')).length;
+  document.getElementById('stat-voluntarios').textContent = data.filter(u => u.grupos && u.grupos.includes('voluntarios')).length;
 
   const impagos = data.filter(u => u.estado === 'socio_impago');
   const aviso = document.getElementById('aviso-impagos');
@@ -96,7 +96,7 @@ function renderizarTabla() {
       '<td>' + (u.apellido || '-') + '</td>' +
       '<td><strong>' + u.uid + '</strong></td>' +
       '<td>' + (u.email || '-') + '</td>' +
-      '<td>' + getBadge(u.grupo) + '</td>' +
+      '<td>' + (u.grupos && u.grupos.length > 0 ? u.grupos.map(g => getBadge(g)).join(' ') : getBadge(null)) + '</td>' +
       '<td>' + getEstadoBadge(u.estado) + '</td>' +
       '<td>' + getAccesoBadge(u.acceso) + '</td>' +
       '<td>' +
@@ -152,8 +152,21 @@ function abrirModal(u) {
   document.getElementById('edit-nombre').value = u.nombre || '';
   document.getElementById('edit-apellido').value = u.apellido || '';
   document.getElementById('edit-email').value = u.email || '';
-  document.getElementById('edit-grupo').value = u.grupo || '';
   document.getElementById('edit-estado').value = u.estado || 'socio_pagado';
+
+  // Desmarcar todos los checkboxes primero
+  document.querySelectorAll('input[name="grupo"]').forEach(cb => {
+    cb.checked = false;
+  });
+
+  // Marcar los grupos que tiene el usuario
+  if (u.grupos && u.grupos.length > 0) {
+    u.grupos.forEach(g => {
+      const cb = document.querySelector(`input[name="grupo"][value="${g}"]`);
+      if (cb) cb.checked = true;
+    });
+  }
+
   document.getElementById('mensaje-modal').style.display = 'none';
   document.getElementById('modal').style.display = 'block';
 }
@@ -161,21 +174,28 @@ function abrirModal(u) {
 function cerrarModal() {
   document.getElementById('modal').style.display = 'none';
 }
-
 function guardarEdicion() {
   const uid = document.getElementById('edit-uid').value;
   const nombre = document.getElementById('edit-nombre').value;
   const apellido = document.getElementById('edit-apellido').value;
   const email = document.getElementById('edit-email').value;
-  const grupo = document.getElementById('edit-grupo').value;
   const estado = document.getElementById('edit-estado').value;
-  const grupoViejo = todosLosUsuarios.find(u => u.uid === uid)?.grupo || '';
   const mensaje = document.getElementById('mensaje-modal');
+
+  // Obtener grupos seleccionados
+  const gruposSeleccionados = [];
+  document.querySelectorAll('input[name="grupo"]:checked').forEach(cb => {
+    gruposSeleccionados.push(cb.value);
+  });
+
+  // Obtener grupos actuales del usuario
+  const usuarioActual = todosLosUsuarios.find(u => u.uid === uid);
+  const gruposViejos = usuarioActual?.grupos || [];
 
   fetch('/api/usuarios/' + uid, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
-    body: JSON.stringify({ nombre, apellido, email, grupo, grupoViejo })
+    body: JSON.stringify({ nombre, apellido, email, grupos: gruposSeleccionados, gruposViejos })
   })
   .then(r => r.json())
   .then(data => {
