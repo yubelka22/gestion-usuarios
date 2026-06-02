@@ -69,7 +69,9 @@ function renderizarTabla() {
 
   let filtrados = filtroActual === 'todos'
     ? todosLosUsuarios
-    : todosLosUsuarios.filter(u => (u.grupo || 'sin grupo').toLowerCase() === filtroActual);
+    : todosLosUsuarios.filter(u => filtroActual === 'sin grupo'
+        ? (!u.grupos || u.grupos.length === 0)
+        : (u.grupos && u.grupos.includes(filtroActual)));
 
   if (busqueda) {
     filtrados = filtrados.filter(u =>
@@ -154,12 +156,10 @@ function abrirModal(u) {
   document.getElementById('edit-email').value = u.email || '';
   document.getElementById('edit-estado').value = u.estado || 'socio_pagado';
 
-  // Desmarcar todos los checkboxes primero
   document.querySelectorAll('input[name="grupo"]').forEach(cb => {
     cb.checked = false;
   });
 
-  // Marcar los grupos que tiene el usuario
   if (u.grupos && u.grupos.length > 0) {
     u.grupos.forEach(g => {
       const cb = document.querySelector(`input[name="grupo"][value="${g}"]`);
@@ -174,6 +174,7 @@ function abrirModal(u) {
 function cerrarModal() {
   document.getElementById('modal').style.display = 'none';
 }
+
 function guardarEdicion() {
   const uid = document.getElementById('edit-uid').value;
   const nombre = document.getElementById('edit-nombre').value;
@@ -182,13 +183,11 @@ function guardarEdicion() {
   const estado = document.getElementById('edit-estado').value;
   const mensaje = document.getElementById('mensaje-modal');
 
-  // Obtener grupos seleccionados
   const gruposSeleccionados = [];
   document.querySelectorAll('input[name="grupo"]:checked').forEach(cb => {
     gruposSeleccionados.push(cb.value);
   });
 
-  // Obtener grupos actuales del usuario
   const usuarioActual = todosLosUsuarios.find(u => u.uid === uid);
   const gruposViejos = usuarioActual?.grupos || [];
 

@@ -51,17 +51,16 @@ async function cambiarGrupos(uid, gruposNuevos, gruposViejos) {
       }
     }
 
+    // Añadir todos los grupos nuevos
     for (const grupoNuevo of gruposNuevos) {
-      if (!gruposViejos.includes(grupoNuevo)) {
-        const grupoObj = grupos.find(g => g.displayName === grupoNuevo);
-        if (grupoObj) {
-          const mutation = `mutation { addUserToGroup(userId: "${uid}", groupId: ${grupoObj.id}) { ok } }`;
-          await fetch(`${LLDAP_URL}/api/graphql`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ query: mutation })
-          });
-        }
+      const grupoObj = grupos.find(g => g.displayName === grupoNuevo);
+      if (grupoObj) {
+        const mutation = `mutation { addUserToGroup(userId: "${uid}", groupId: ${grupoObj.id}) { ok } }`;
+        await fetch(`${LLDAP_URL}/api/graphql`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ query: mutation })
+        });
       }
     }
   } catch (err) {
